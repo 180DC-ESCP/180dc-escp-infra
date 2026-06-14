@@ -94,8 +94,7 @@ wait_for_vexa() {
   local tries=60
   while [ "$tries" -gt 0 ]; do
     if docker inspect -f '{{.State.Status}}' vexa-lite 2>/dev/null | grep -qx running \
-      && docker exec vexa-lite supervisorctl status >/dev/null 2>&1 \
-      && ( : > /dev/tcp/127.0.0.1/8056 ) >/dev/null 2>&1; then
+      && curl -fsS http://127.0.0.1:8056/ >/dev/null 2>&1; then
       return 0
     fi
     if [ $((tries % 6)) -eq 0 ]; then
