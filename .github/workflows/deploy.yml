@@ -44,22 +44,36 @@ jobs:
 
       - name: Write server-only secrets
         shell: bash
+        env:
+          AUTHENTIK_ENV_B64: ${{ secrets.AUTHENTIK_ENV_B64 }}
+          N8N_ENV_B64: ${{ secrets.N8N_ENV_B64 }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "install -m 700 -d /opt/180dc/authentik /opt/180dc/apps/n8n && base64 -d > /opt/180dc/authentik/.env" \
-            <<< "${{ secrets.AUTHENTIK_ENV_B64 }}"
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "base64 -d > /opt/180dc/apps/n8n/.env" \
-            <<< "${{ secrets.N8N_ENV_B64 }}"
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "cat >> /opt/180dc/authentik/.env" <<'EOF'
 
-GOOGLE_OAUTH_CLIENT_ID=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
-GOOGLE_OAUTH_CLIENT_SECRET=${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
-AUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org
-AUTHENTIK_BASE_URL=https://login.180dc-escp.org
-EOF
+          authentik_env="$(mktemp)"
+          n8n_env="$(mktemp)"
+
+          printf '%s' "$AUTHENTIK_ENV_B64" | base64 -d > "$authentik_env"
+          {
+            printf '\nGOOGLE_OAUTH_CLIENT_ID=%s\n' "$GOOGLE_OAUTH_CLIENT_ID"
+            printf 'GOOGLE_OAUTH_CLIENT_SECRET=%s\n' "$GOOGLE_OAUTH_CLIENT_SECRET"
+            printf 'AUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
+            printf 'AUTHENTIK_BASE_URL=https://login.180dc-escp.org\n'
+          } >> "$authentik_env"
+
+          printf '%s' "$N8N_ENV_B64" | base64 -d > "$n8n_env"
+
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "install -m 700 -d /opt/180dc/authentik /opt/180dc/apps/n8n"
+
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$authentik_env" \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/authentik/.env"
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$n8n_env" \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/apps/n8n/.env"
+
+          rm -f "$authentik_env" "$n8n_env"
 
       - name: Deploy
         shell: bash
