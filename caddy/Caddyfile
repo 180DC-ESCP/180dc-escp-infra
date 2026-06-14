@@ -1,0 +1,41 @@
+(forward_auth) {
+	forward_auth authentik-server:9000 {
+		uri /outpost.goauthentik.io/auth/caddy
+		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Email X-Authentik-Name X-Authentik-Uid
+		trusted_proxies private_ranges
+	}
+}
+
+login.180dc-escp.org {
+	reverse_proxy authentik-server:9000
+}
+
+n8n.180dc-escp.org {
+	import forward_auth
+	reverse_proxy n8n:5678
+}
+
+hooks.180dc-escp.org {
+	import forward_auth
+	reverse_proxy n8n:5678
+}
+
+bimi.180dc-escp.org {
+	import forward_auth
+
+	@bimi path /.well-known/bimi/*
+	handle @bimi {
+		root * /static
+		file_server
+	}
+
+	handle {
+		respond 404
+	}
+}
+
+odoo.180dc-escp.org {
+	import forward_auth
+	respond 410
+}
+
