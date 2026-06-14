@@ -40,6 +40,9 @@ wait_for_authentik() {
     if docker inspect -f '{{.State.Health.Status}}' authentik-server 2>/dev/null | grep -qx healthy; then
       return 0
     fi
+    if [ $((tries % 6)) -eq 0 ]; then
+      echo "waiting for authentik-server health..."
+    fi
     tries=$((tries - 1))
     sleep 5
   done
@@ -50,12 +53,16 @@ wait_for_authentik() {
 wait_for_vexa() {
   local tries=60
   while [ "$tries" -gt 0 ]; do
-    if curl -fsS http://127.0.0.1:8056/ >/dev/null 2>&1; then
+    if ( : > /dev/tcp/127.0.0.1/8056 ) >/dev/null 2>&1; then
       return 0
+    fi
+    if [ $((tries % 6)) -eq 0 ]; then
+      echo "waiting for vexa-lite on 127.0.0.1:8056..."
     fi
     tries=$((tries - 1))
     sleep 5
   done
+  docker logs --tail 100 vexa-lite >&2 || true
   echo "vexa-lite did not become reachable" >&2
   return 1
 }
@@ -65,6 +72,9 @@ wait_for_odoo() {
   while [ "$tries" -gt 0 ]; do
     if docker inspect -f '{{.State.Health.Status}}' odoo-db 2>/dev/null | grep -qx healthy; then
       return 0
+    fi
+    if [ $((tries % 6)) -eq 0 ]; then
+      echo "waiting for odoo-db health..."
     fi
     tries=$((tries - 1))
     sleep 5
