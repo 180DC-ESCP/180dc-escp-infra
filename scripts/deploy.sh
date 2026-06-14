@@ -11,6 +11,19 @@ require_root() {
   fi
 }
 
+dump_diagnostics() {
+  local exit_code="$?"
+  echo "deploy failed with exit code $exit_code" >&2
+  docker ps --format '{{.Names}} {{.Status}}' | sort >&2 || true
+  for container in authentik-server n8n vexa-lite vexa-sso odoo; do
+    if docker inspect "$container" >/dev/null 2>&1; then
+      echo "---- logs: $container ----" >&2
+      docker logs --tail 120 "$container" >&2 || true
+    fi
+  done
+  exit "$exit_code"
+}
+
 sync_dir() {
   local src="$1"
   local dst="$2"
@@ -53,17 +66,38 @@ wait_for_authentik() {
 wait_for_vexa() {
   local tries=60
   while [ "$tries" -gt 0 ]; do
-    if ( : > /dev/tcp/127.0.0.1/8056 ) >/dev/null 2>&1; then
+    if docker inspect -f '{{.State.Status}}' vexa-lite 2>/dev/null | grep -qx running \
+      && docker exec vexa-lite supervisorctl status >/dev/null 2>&1 \
+      && ( : > /dev/tcp/127.0.0.1/8056 ) >/dev/null 2>&1 \
+      && ( : > /dev/tcp/127.0.0.1/3000 ) >/dev/null 2>&1; then
       return 0
     fi
     if [ $((tries % 6)) -eq 0 ]; then
-      echo "waiting for vexa-lite on 127.0.0.1:8056..."
+      echo "waiting for vexa-lite services..."
     fi
     tries=$((tries - 1))
     sleep 5
   done
   docker logs --tail 100 vexa-lite >&2 || true
   echo "vexa-lite did not become reachable" >&2
+  return 1
+}
+
+wait_for_container_running() {
+  local container="$1"
+  local tries=60
+  while [ "$tries" -gt 0 ]; do
+    if docker inspect -f '{{.State.Status}}' "$container" 2>/dev/null | grep -qx running; then
+      return 0
+    fi
+    if [ $((tries % 6)) -eq 0 ]; then
+      echo "waiting for $container to run..."
+    fi
+    tries=$((tries - 1))
+    sleep 5
+  done
+  docker logs --tail 100 "$container" >&2 || true
+  echo "$container did not stay running" >&2
   return 1
 }
 
@@ -82,6 +116,13 @@ wait_for_odoo() {
   echo "odoo-db did not become healthy" >&2
   return 1
 }
+
+odoo_database_initialized() {
+  docker exec odoo-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "\dt public.ir_module_module"' 2>/dev/null \
+    | grep -q ir_module_module
+}
+
+trap dump_diagnostics ERR
 
 require_root
 
@@ -117,8 +158,16 @@ docker compose -f "$LIVE_ROOT/apps/vexa/docker-compose.yml" --env-file "$LIVE_RO
 wait_for_vexa
 
 docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" pull
-docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d --remove-orphans
+docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d db
 wait_for_odoo
+if odoo_database_initialized; then
+  echo "Odoo database already initialized."
+else
+  echo "Initializing Odoo database."
+  docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" --profile init run --rm init
+fi
+docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d --remove-orphans odoo
+wait_for_container_running odoo
 
 docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" pull
 docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" up -d --remove-orphans
