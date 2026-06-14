@@ -69,8 +69,9 @@ backup_volume n8n_n8n_data n8n_data
 backup_directory /opt/180dc/authentik/data authentik_data
 
 echo "Cleaning up old backups (keeping last $RETENTION_DAYS days)..."
-find "$BACKUP_DIR/databases" -name "*.sql.gz" -mtime +"$RETENTION_DAYS" -delete
-find "$BACKUP_DIR/volumes" -name "*.tar.gz" -mtime +"$RETENTION_DAYS" -delete
+RETENTION_MINUTES=$((RETENTION_DAYS * 24 * 60))
+find "$BACKUP_DIR/databases" -name "*.sql.gz" -mmin +"$RETENTION_MINUTES" -delete
+find "$BACKUP_DIR/volumes" -name "*.tar.gz" -mmin +"$RETENTION_MINUTES" -delete
 
 TOTAL_SIZE="$(du -sh "$BACKUP_DIR" | cut -f1)"
 echo "=== Backup completed at $(date) ==="
@@ -82,4 +83,3 @@ ls -lh "$BACKUP_DIR/databases" | grep "$DATE" || true
 echo ""
 echo "Latest volume backups:"
 ls -lh "$BACKUP_DIR/volumes" | grep "$DATE" || true
-
