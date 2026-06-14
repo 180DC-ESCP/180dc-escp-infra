@@ -198,7 +198,7 @@ docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_RO
 wait_for_container_running odoo
 
 docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" pull
-docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" up -d --remove-orphans
+docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" up -d --force-recreate --remove-orphans
 
 docker image prune -a -f >/dev/null
 docker builder prune -f >/dev/null
