@@ -1,0 +1,35 @@
+<odoo>
+    <record id="res_config_settings_view_form_student_society" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.student.society</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Student Society" string="Student Society" name="student_society">
+                    <block title="Google OAuth">
+                        <setting string="Google Client ID">
+                            <field name="society_google_client_id"/>
+                        </setting>
+                        <setting string="Google Client Secret">
+                            <field name="society_google_client_secret" password="True"/>
+                        </setting>
+                    </block>
+                    <block title="Slack OAuth">
+                        <setting string="Slack Client ID">
+                            <field name="society_slack_client_id"/>
+                        </setting>
+                        <setting string="Slack Client Secret">
+                            <field name="society_slack_client_secret" password="True"/>
+                        </setting>
+                        <setting string="Slack Bot Scopes">
+                            <field name="society_slack_bot_scopes"/>
+                        </setting>
+                        <setting string="Slack User Scopes">
+                            <field name="society_slack_user_scopes"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

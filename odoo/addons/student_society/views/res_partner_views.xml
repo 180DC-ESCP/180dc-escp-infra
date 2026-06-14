@@ -1,0 +1,83 @@
+<odoo>
+    <record id="view_partner_form_student_society" model="ir.ui.view">
+        <field name="name">res.partner.form.student.society</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Student Society">
+                    <group>
+                        <group string="Member">
+                            <field name="society_is_member"/>
+                            <field name="society_email_180"/>
+                            <field name="society_email_private"/>
+                            <field name="society_email_escp"/>
+                            <field name="society_program"/>
+                            <field name="society_languages"/>
+                            <field name="society_nationality"/>
+                            <field name="society_cv_url" widget="url"/>
+                        </group>
+                        <group string="Dates">
+                            <field name="society_date_of_birth"/>
+                            <field name="society_joining_date"/>
+                            <field name="society_estimated_graduation_date"/>
+                        </group>
+                    </group>
+                    <group string="Client">
+                        <field name="society_is_client"/>
+                        <field name="society_is_client_contact"/>
+                        <field name="society_client_logo_url" widget="url"/>
+                    </group>
+                    <group string="Membership Assignments">
+                        <field name="society_membership_assignment_ids" readonly="1">
+                            <list>
+                                <field name="date_start"/>
+                                <field name="date_end"/>
+                                <field name="role_id"/>
+                                <field name="campus_id"/>
+                                <field name="is_current"/>
+                            </list>
+                        </field>
+                    </group>
+                    <group string="Current Projects">
+                        <field name="society_current_project_ids" readonly="1"/>
+                    </group>
+                    <group string="Project Participation">
+                        <field name="society_project_participation_ids" readonly="1">
+                            <list>
+                                <field name="project_id"/>
+                                <field name="role_id"/>
+                                <field name="campus_id"/>
+                                <field name="is_project_lead"/>
+                            </list>
+                        </field>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_society_members" model="ir.actions.act_window">
+        <field name="name">Members</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('society_is_member', '=', True)]</field>
+        <field name="context">{'default_society_is_member': True, 'default_is_company': False}</field>
+    </record>
+
+    <record id="action_society_clients" model="ir.actions.act_window">
+        <field name="name">Client Companies</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('society_is_client', '=', True)]</field>
+        <field name="context">{'default_society_is_client': True, 'default_is_company': True}</field>
+    </record>
+
+    <record id="action_society_client_people" model="ir.actions.act_window">
+        <field name="name">Client People</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('society_is_client_contact', '=', True)]</field>
+        <field name="context">{'default_society_is_client_contact': True, 'default_is_company': False}</field>
+    </record>
+</odoo>

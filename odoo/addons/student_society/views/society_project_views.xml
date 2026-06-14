@@ -1,0 +1,78 @@
+<odoo>
+    <record id="view_society_project_list" model="ir.ui.view">
+        <field name="name">society.project.list</field>
+        <field name="model">society.project</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="client_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="project_type"/>
+                <field name="gtm_vertical"/>
+                <field name="confidentiality"/>
+                <field name="project_lead_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_society_project_form" model="ir.ui.view">
+        <field name="name">society.project.form</field>
+        <field name="model">society.project</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="client_id"/>
+                            <field name="poc_id"/>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="project_lead_id"/>
+                        </group>
+                        <group>
+                            <field name="project_type"/>
+                            <field name="gtm_vertical"/>
+                            <field name="confidentiality"/>
+                            <field name="financial_contribution"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Summary">
+                            <field name="summary"/>
+                            <field name="note"/>
+                        </page>
+                        <page string="Participants">
+                            <field name="participant_ids">
+                                <list editable="bottom">
+                                    <field name="partner_id"/>
+                                    <field name="role_id" readonly="1"/>
+                                    <field name="campus_id" readonly="1"/>
+                                    <field name="is_project_lead" readonly="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Links">
+                            <group>
+                                <field name="client_logo_url" widget="url"/>
+                                <field name="contract_url" widget="url"/>
+                                <field name="scoping_document_url" widget="url"/>
+                                <field name="final_presentation_url" widget="url"/>
+                                <field name="more_documents_url" widget="url"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_society_projects" model="ir.actions.act_window">
+        <field name="name">Projects</field>
+        <field name="res_model">society.project</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

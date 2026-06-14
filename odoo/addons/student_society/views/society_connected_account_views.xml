@@ -1,0 +1,62 @@
+<odoo>
+    <record id="view_society_connected_account_list" model="ir.ui.view">
+        <field name="name">society.connected.account.list</field>
+        <field name="model">society.connected.account</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="partner_id"/>
+                <field name="provider"/>
+                <field name="external_email"/>
+                <field name="token_status"/>
+                <field name="last_sync_at"/>
+                <field name="notification_enabled"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_society_connected_account_form" model="ir.ui.view">
+        <field name="name">society.connected.account.form</field>
+        <field name="model">society.connected.account</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_connect" type="object" string="Connect" class="btn-primary"/>
+                    <button name="action_sync_google_calendar" type="object" string="Sync Google Calendar" class="btn-secondary"/>
+                    <button name="action_send_slack_test_notification" type="object" string="Send Slack Test" class="btn-secondary"/>
+                    <button name="action_disconnect" type="object" string="Disconnect" class="btn-secondary"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="user_id"/>
+                            <field name="provider"/>
+                            <field name="external_id"/>
+                            <field name="external_email"/>
+                            <field name="google_calendar_id"/>
+                        </group>
+                        <group>
+                            <field name="token_status"/>
+                            <field name="token_expires_at"/>
+                            <field name="last_sync_at"/>
+                            <field name="notification_enabled"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="granted_scopes"/>
+                    </group>
+                    <group groups="base.group_system">
+                        <field name="access_token" password="True"/>
+                        <field name="refresh_token" password="True"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_society_connected_accounts" model="ir.actions.act_window">
+        <field name="name">Connected Accounts</field>
+        <field name="res_model">society.connected.account</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

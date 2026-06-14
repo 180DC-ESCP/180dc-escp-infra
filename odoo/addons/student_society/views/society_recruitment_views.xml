@@ -1,0 +1,123 @@
+<odoo>
+    <record id="view_society_applicant_list" model="ir.ui.view">
+        <field name="name">society.applicant.list</field>
+        <field name="model">society.applicant</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="stage_id"/>
+                <field name="state"/>
+                <field name="campus_id"/>
+                <field name="role_id"/>
+                <field name="assignment_start_date"/>
+                <field name="assignment_end_date"/>
+                <field name="email_180"/>
+                <field name="source_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_society_applicant_kanban" model="ir.ui.view">
+        <field name="name">society.applicant.kanban</field>
+        <field name="model">society.applicant</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="stage_id">
+                <templates>
+                    <t t-name="card">
+                        <field name="name"/>
+                        <div><field name="role_id"/></div>
+                        <div><field name="campus_id"/></div>
+                        <div><field name="email_180"/></div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_society_applicant_form" model="ir.ui.view">
+        <field name="name">society.applicant.form</field>
+        <field name="model">society.applicant</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_create_or_update_contact" type="object" string="Create/Update Contact" class="btn-secondary"/>
+                    <button name="action_accept_member" type="object" string="Accept as Member" class="btn-primary"/>
+                    <field name="state" widget="statusbar" statusbar_visible="open,accepted,refused"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="partner_id"/>
+                            <field name="stage_id"/>
+                            <field name="campus_id"/>
+                            <field name="role_id"/>
+                            <field name="source_id"/>
+                            <field name="assignment_start_date"/>
+                            <field name="assignment_end_date"/>
+                        </group>
+                        <group>
+                            <field name="email_180"/>
+                            <field name="email_private"/>
+                            <field name="email_escp"/>
+                            <field name="phone"/>
+                            <field name="program"/>
+                            <field name="languages"/>
+                            <field name="nationality"/>
+                            <field name="date_of_birth"/>
+                            <field name="cv_url" widget="url"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Notes">
+                            <field name="note"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_society_applicants" model="ir.actions.act_window">
+        <field name="name">Applicants</field>
+        <field name="res_model">society.applicant</field>
+        <field name="view_mode">kanban,list,form</field>
+    </record>
+
+    <record id="view_society_recruitment_stage_list" model="ir.ui.view">
+        <field name="name">society.recruitment.stage.list</field>
+        <field name="model">society.recruitment.stage</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="fold"/>
+                <field name="is_accepted"/>
+                <field name="is_refused"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_society_recruitment_stages" model="ir.actions.act_window">
+        <field name="name">Recruitment Stages</field>
+        <field name="res_model">society.recruitment.stage</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_society_recruitment_source_list" model="ir.ui.view">
+        <field name="name">society.recruitment.source.list</field>
+        <field name="model">society.recruitment.source</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="name"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_society_recruitment_sources" model="ir.actions.act_window">
+        <field name="name">Recruitment Sources</field>
+        <field name="res_model">society.recruitment.source</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

@@ -1,0 +1,98 @@
+services:
+  db:
+    image: postgres:15
+    container_name: odoo-db
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-student_society}
+      POSTGRES_USER: ${POSTGRES_USER:-odoo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?database password required}
+    volumes:
+      - odoo-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - odoo-internal
+
+  odoo:
+    image: odoo:19.0
+    container_name: odoo
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      HOST: db
+      USER: ${POSTGRES_USER:-odoo}
+      PASSWORD: ${POSTGRES_PASSWORD:?database password required}
+    volumes:
+      - odoo-web-data:/var/lib/odoo
+      - ./config:/etc/odoo
+      - ./addons:/mnt/extra-addons
+      - .:/mnt/import:ro
+    command:
+      - odoo
+      - -d
+      - ${ODOO_DATABASE:-student_society}
+      - --proxy-mode
+      - --admin-passwd=${ODOO_ADMIN_PASSWORD:?odoo admin password required}
+      - --db_host=db
+      - --db_user=${POSTGRES_USER:-odoo}
+      - --db_password=${POSTGRES_PASSWORD:?database password required}
+    networks:
+      - proxy
+      - odoo-internal
+
+  init:
+    image: odoo:19.0
+    profiles:
+      - init
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      HOST: db
+      USER: ${POSTGRES_USER:-odoo}
+      PASSWORD: ${POSTGRES_PASSWORD:?database password required}
+    volumes:
+      - odoo-web-data:/var/lib/odoo
+      - ./config:/etc/odoo
+      - ./addons:/mnt/extra-addons
+      - .:/mnt/import:ro
+    command:
+      - odoo
+      - -d
+      - ${ODOO_DATABASE:-student_society}
+      - -i
+      - student_society
+      - --without-demo=True
+      - --stop-after-init
+      - --admin-passwd=${ODOO_ADMIN_PASSWORD:?odoo admin password required}
+      - --db_host=db
+      - --db_user=${POSTGRES_USER:-odoo}
+      - --db_password=${POSTGRES_PASSWORD:?database password required}
+    networks:
+      - odoo-internal
+
+volumes:
+  odoo-db-data:
+  odoo-web-data:
+
+networks:
+  proxy:
+    external: true
+  odoo-internal:
+    driver: bridge

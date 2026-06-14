@@ -1,0 +1,21 @@
+<odoo>
+    <menuitem id="menu_student_society_root" name="Student Society" sequence="20"/>
+
+    <menuitem id="menu_society_directory" name="Directory" parent="menu_student_society_root" sequence="10"/>
+    <menuitem id="menu_society_members" name="Members" parent="menu_society_directory" action="action_society_members" sequence="10"/>
+    <menuitem id="menu_society_clients" name="Client Companies" parent="menu_society_directory" action="action_society_clients" sequence="20"/>
+    <menuitem id="menu_society_client_people" name="Client People" parent="menu_society_directory" action="action_society_client_people" sequence="30"/>
+    <menuitem id="menu_society_connected_accounts" name="Connected Accounts" parent="menu_society_directory" action="action_society_connected_accounts" sequence="40"/>
+
+    <menuitem id="menu_society_membership" name="Membership" parent="menu_student_society_root" sequence="20"/>
+    <menuitem id="menu_society_member_assignments" name="Assignments" parent="menu_society_membership" action="action_society_member_assignments" sequence="10"/>
+    <menuitem id="menu_society_roles" name="Roles" parent="menu_society_membership" action="action_society_roles" sequence="20"/>
+    <menuitem id="menu_society_campuses" name="Campuses" parent="menu_society_membership" action="action_society_campuses" sequence="30"/>
+
+    <menuitem id="menu_society_recruitment" name="Recruitment" parent="menu_student_society_root" sequence="30"/>
+    <menuitem id="menu_society_applicants" name="Applicants" parent="menu_society_recruitment" action="action_society_applicants" sequence="10"/>
+    <menuitem id="menu_society_recruitment_stages" name="Stages" parent="menu_society_recruitment" action="action_society_recruitment_stages" sequence="20"/>
+    <menuitem id="menu_society_recruitment_sources" name="Sources" parent="menu_society_recruitment" action="action_society_recruitment_sources" sequence="30"/>
+
+    <menuitem id="menu_society_projects" name="Projects" parent="menu_student_society_root" action="action_society_projects" sequence="40"/>
+</odoo>
