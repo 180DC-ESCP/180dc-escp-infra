@@ -11,6 +11,10 @@
 *.sql.gz
 *.tar
 *.tar.gz
+/.local/
+/Client Database - Client Database.csv
+/Client Database - Project Database.csv
+/Member Database - Member Database.csv
 /odoo/*.csv
 __pycache__/
 *.py[cod]

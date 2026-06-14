@@ -50,6 +50,63 @@ base64 < vexa/.env.production | gh secret set VEXA_ENV_B64 --body-file -
 base64 < odoo/.env.production | gh secret set ODOO_ENV_B64 --body-file -
 ```
 
+## Local Full-Stack Run
+
+Use `scripts/local.sh` to run the same service topology locally with Docker Compose. This is not a separate test fixture: it uses the real Compose files, generated local overrides under `.local/`, local `.env` files, and the same public hostnames mapped to `127.0.0.1`.
+
+Add local DNS entries:
+
+```sh
+sudo sh -c 'printf "\n127.0.0.1 login.180dc-escp.org n8n.180dc-escp.org hooks.180dc-escp.org bimi.180dc-escp.org vexa.180dc-escp.org vexa-api.180dc-escp.org odoo.180dc-escp.org\n" >> /etc/hosts'
+```
+
+Create local env files:
+
+```sh
+./scripts/local.sh init
+```
+
+Then set real Google OAuth credentials in `authentik/.env`:
+
+```txt
+GOOGLE_OAUTH_CLIENT_ID=...
+GOOGLE_OAUTH_CLIENT_SECRET=...
+```
+
+The Google OAuth redirect URI for local and prod is:
+
+```txt
+https://login.180dc-escp.org/source/oauth/callback/google/
+```
+
+Start everything:
+
+```sh
+./scripts/local.sh up
+```
+
+Useful commands:
+
+```sh
+./scripts/local.sh verify
+./scripts/local.sh status
+./scripts/local.sh logs
+./scripts/local.sh down
+./scripts/local.sh reset
+```
+
+`down` keeps Docker volumes. `reset` deletes local volumes and generated `.local/` files. Caddy uses local TLS certificates, so browsers may show a certificate warning unless you trust Caddy's local CA. Use a separate browser profile so local cookies do not mix with production cookies.
+
+Ignored local migration CSVs can be placed at the repository root for Odoo initialization:
+
+```txt
+Member Database - Member Database.csv
+Client Database - Project Database.csv
+Client Database - Client Database.csv
+```
+
+The CSVs are mounted only into the local Odoo init container. They remain ignored and must not be committed.
+
 ## Authentik
 
 `authentik/apply-config.py` is the current source of truth for authentik app config. It reconciles:
