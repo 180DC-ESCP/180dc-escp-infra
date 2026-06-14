@@ -95,8 +95,7 @@ wait_for_vexa() {
   while [ "$tries" -gt 0 ]; do
     if docker inspect -f '{{.State.Status}}' vexa-lite 2>/dev/null | grep -qx running \
       && docker exec vexa-lite supervisorctl status >/dev/null 2>&1 \
-      && ( : > /dev/tcp/127.0.0.1/8056 ) >/dev/null 2>&1 \
-      && ( : > /dev/tcp/127.0.0.1/3000 ) >/dev/null 2>&1; then
+      && ( : > /dev/tcp/127.0.0.1/8056 ) >/dev/null 2>&1; then
       return 0
     fi
     if [ $((tries % 6)) -eq 0 ]; then
@@ -186,6 +185,8 @@ docker compose -f "$LIVE_ROOT/apps/vexa/docker-compose.yml" --env-file "$LIVE_RO
 wait_for_vexa
 
 docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" pull
+docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" stop odoo || true
+docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" rm -f odoo || true
 docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d db
 wait_for_odoo
 if odoo_database_initialized; then
