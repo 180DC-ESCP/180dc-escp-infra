@@ -8,6 +8,7 @@
 - backup/restore scripts
 - deployment automation
 - app secrets stored as GitHub Actions secrets
+- local Vexa Whisper service configuration
 
 ## Server-managed
 
@@ -18,6 +19,7 @@
 - PostgreSQL runtime state
 - Docker volumes
 - local backup archives
+- migrated Odoo member/client data
 
 ## Authentication rule
 
@@ -31,6 +33,8 @@ Unsupported app-native SSO is handled with explicit adapters:
 - Vexa: `vexa/sso-bridge.py` receives Authentik identity headers, provisions a Vexa user through the Admin API, creates a scoped Vexa token, and sets the dashboard cookies.
 
 These adapters are part of the managed configuration and should be verified before app image upgrades.
+
+Vexa transcription runs locally through the private `vexa-whisper` container. It is reachable only on the Vexa internal Docker network and provides an OpenAI-compatible Whisper `base` endpoint for Vexa Lite.
 
 Currently managed public hosts:
 

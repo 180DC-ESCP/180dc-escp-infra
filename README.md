@@ -28,6 +28,8 @@ All exposed websites and tools are expected to pass through authentik before app
 
 Deployment is handled by GitHub Actions. The workflow copies this repo to the server, writes environment files from GitHub Actions secrets, runs a server-side backup, updates containers, reconciles authentik config, and verifies public routes.
 
+Deploys are idempotent. `docker compose up -d` is run for each managed Compose project, so Docker only recreates containers when the service definition or image actually changes. Bind-mounted config that Compose cannot detect is handled with service-level reloads, for example Caddy receives `caddy reload` after its config is synced.
+
 Required GitHub Actions secrets:
 
 - `DEPLOY_HOST`
@@ -69,25 +71,27 @@ n8n uses a custom Authentik SSO external hook mounted from `n8n/authentik-sso-ho
 
 Vexa Lite dashboard is protected by authentik at `https://vexa.180dc-escp.org` and is visible to all allowed `@180dc.org` Google users. The `vexa/sso-bridge.py` service turns the verified Authentik identity headers into a Vexa user and dashboard session token. The API gateway is available at `https://vexa-api.180dc-escp.org` and internally at `http://vexa-lite:8056` from the shared Docker proxy network.
 
+Transcription is local. Vexa Lite points at the private `whisper` service in `vexa/docker-compose.yml`, which runs Whisper `base` through an OpenAI-compatible `/v1/audio/transcriptions` endpoint on the internal Vexa network. The Whisper service is not exposed through Caddy.
+
 Vexa API access is still controlled with Vexa API tokens. Public Admin API paths under `https://vexa-api.180dc-escp.org/admin/*` are protected by authentik.
 
-The Odoo CSV files are one-time migration inputs and are not used by the deployment pipeline.
+The Odoo migration CSVs were one-time production inputs. They are not part of the managed repo or deploy path.
 
 `escp@180dc.org` is the platform admin target. Existing default/admin owner accounts in authentik, n8n, and Odoo live in their application databases; remove or demote them during live migration after confirming `escp@180dc.org` can sign in and administer the app.
 
 ## Odoo
 
 Odoo is deployed as a managed app at `https://odoo.180dc-escp.org` and protected by authentik at the reverse proxy. Normal deploys start the existing Odoo database without reinstalling modules or rerunning CSV imports.
+Odoo migration data lives only in the initialized production database and its backups. Do not recommit member/client migration exports to this repository.
 
-Initial production setup is explicit and one-time:
+Initial production setup is automatic and one-time during deploy:
 
 ```sh
 cd /opt/180dc-git/current
 ./scripts/deploy.sh
-./scripts/init-odoo.sh
 ```
 
-The `init` profile installs `student_society` into the `student_society` database, runs the addon post-init hook, and imports the CSV files mounted from the Odoo app folder. After initialization, future deploys only start `odoo`.
+The `init` profile installs `student_society` into the `student_society` database when the database has no Odoo schema yet. After initialization, future deploys only start the existing `odoo` service.
 
 Native Authentik/Odoo SSO should be configured through Odoo's OAuth Authentication settings or a managed Odoo auth addon after the database exists and `escp@180dc.org` is the administrator.
 

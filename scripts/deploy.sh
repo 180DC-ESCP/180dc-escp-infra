@@ -15,7 +15,7 @@ dump_diagnostics() {
   local exit_code="$?"
   echo "deploy failed with exit code $exit_code" >&2
   docker ps --format '{{.Names}} {{.Status}}' | sort >&2 || true
-  for container in caddy authentik-server n8n vexa-lite vexa-sso odoo; do
+  for container in caddy authentik-server n8n vexa-lite vexa-sso vexa-whisper odoo; do
     if docker inspect "$container" >/dev/null 2>&1; then
       echo "---- logs: $container ----" >&2
       docker logs --tail 120 "$container" >&2 || true
@@ -184,8 +184,6 @@ docker compose -f "$LIVE_ROOT/apps/vexa/docker-compose.yml" --env-file "$LIVE_RO
 wait_for_vexa
 
 docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" pull
-docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" stop odoo || true
-docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" rm -f odoo || true
 docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d db
 wait_for_odoo
 if odoo_database_initialized; then
@@ -198,7 +196,8 @@ docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_RO
 wait_for_container_running odoo
 
 docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" pull
-docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" up -d --force-recreate --remove-orphans
+docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" up -d --remove-orphans
+docker exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 
 docker image prune -a -f >/dev/null
 docker builder prune -f >/dev/null

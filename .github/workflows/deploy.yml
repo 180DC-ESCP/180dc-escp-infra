@@ -111,7 +111,22 @@ jobs:
             fi
             printf '\nDB_PASSWORD=%s\n' "$admin_token" >> "$vexa_env"
           fi
+          normalized_vexa_env="$(mktemp)"
+          grep -Ev '^(TRANSCRIPTION_SERVICE_URL|TRANSCRIPTION_SERVICE_TOKEN|TRANSCRIBER_URL|TRANSCRIBER_API_KEY|OPENAI_API_KEY|SKIP_TRANSCRIPTION_CHECK|WHISPER_IMAGE_TAG|WHISPER_MODEL|WHISPER_LANGUAGE|WHISPER_DEVICE|WHISPER_COMPUTE_TYPE|WHISPER_THREADS)=' "$vexa_env" > "$normalized_vexa_env" || true
+          mv "$normalized_vexa_env" "$vexa_env"
           {
+            printf '\nTRANSCRIPTION_SERVICE_URL=http://whisper:9000/v1/audio/transcriptions\n'
+            printf 'TRANSCRIPTION_SERVICE_TOKEN=local-whisper\n'
+            printf 'TRANSCRIBER_URL=http://whisper:9000/v1/audio/transcriptions\n'
+            printf 'TRANSCRIBER_API_KEY=local-whisper\n'
+            printf 'OPENAI_API_KEY=local-whisper\n'
+            printf 'SKIP_TRANSCRIPTION_CHECK=false\n'
+            printf 'WHISPER_IMAGE_TAG=latest\n'
+            printf 'WHISPER_MODEL=base\n'
+            printf 'WHISPER_LANGUAGE=auto\n'
+            printf 'WHISPER_DEVICE=cpu\n'
+            printf 'WHISPER_COMPUTE_TYPE=int8\n'
+            printf 'WHISPER_THREADS=2\n'
             printf '\nAUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
             printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
           } >> "$vexa_env"

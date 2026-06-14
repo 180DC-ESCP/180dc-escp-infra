@@ -11,6 +11,7 @@
 *.sql.gz
 *.tar
 *.tar.gz
+/odoo/*.csv
 __pycache__/
 *.py[cod]
 authentik/data/

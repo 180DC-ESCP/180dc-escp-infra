@@ -40,7 +40,6 @@ services:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
       - ./addons:/mnt/extra-addons
-      - .:/mnt/import:ro
     command:
       - odoo
       - server
@@ -71,7 +70,6 @@ services:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
       - ./addons:/mnt/extra-addons
-      - .:/mnt/import:ro
     command:
       - odoo
       - server

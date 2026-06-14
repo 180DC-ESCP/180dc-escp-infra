@@ -23,6 +23,30 @@ services:
     networks:
       - vexa-internal
 
+  whisper:
+    image: hwdsl2/whisper-server:${WHISPER_IMAGE_TAG:-latest}
+    container_name: vexa-whisper
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-auto}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
+      WHISPER_THREADS: ${WHISPER_THREADS:-2}
+      WHISPER_PORT: 9000
+    volumes:
+      - whisper_data:/var/lib/whisper
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/docs', timeout=5)\""]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    networks:
+      - vexa-internal
+
   vexa-lite:
     image: vexaai/vexa-lite:${IMAGE_TAG:-latest}
     container_name: vexa-lite
@@ -46,9 +70,12 @@ services:
       NEXT_PUBLIC_APP_URL: https://vexa.180dc-escp.org
       VEXA_AUTH_COOKIE_NAME: vexa-token-lite
       VEXA_USER_INFO_COOKIE_NAME: vexa-user-info-lite
-      TRANSCRIPTION_SERVICE_URL: ${TRANSCRIPTION_SERVICE_URL:?transcription service url required}
-      TRANSCRIPTION_SERVICE_TOKEN: ${TRANSCRIPTION_SERVICE_TOKEN:?transcription service token required}
-      SKIP_TRANSCRIPTION_CHECK: ${SKIP_TRANSCRIPTION_CHECK:-true}
+      TRANSCRIPTION_SERVICE_URL: ${TRANSCRIPTION_SERVICE_URL:-http://whisper:9000/v1/audio/transcriptions}
+      TRANSCRIPTION_SERVICE_TOKEN: ${TRANSCRIPTION_SERVICE_TOKEN:-local-whisper}
+      TRANSCRIBER_URL: ${TRANSCRIBER_URL:-http://whisper:9000/v1/audio/transcriptions}
+      TRANSCRIBER_API_KEY: ${TRANSCRIBER_API_KEY:-local-whisper}
+      OPENAI_API_KEY: ${TRANSCRIPTION_SERVICE_TOKEN:-local-whisper}
+      SKIP_TRANSCRIPTION_CHECK: ${SKIP_TRANSCRIPTION_CHECK:-false}
       STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
       LOCAL_STORAGE_DIR: /var/lib/vexa/recordings
       PIPER_VOICES_DIR: /app/voices
@@ -58,6 +85,8 @@ services:
       - tts_voices:/app/voices
     depends_on:
       postgres:
+        condition: service_healthy
+      whisper:
         condition: service_healthy
     networks:
       - proxy
@@ -95,6 +124,7 @@ volumes:
   postgres_data:
   recordings:
   tts_voices:
+  whisper_data:
 
 networks:
   proxy:
