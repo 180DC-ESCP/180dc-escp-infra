@@ -15,7 +15,7 @@ dump_diagnostics() {
   local exit_code="$?"
   echo "deploy failed with exit code $exit_code" >&2
   docker ps --format '{{.Names}} {{.Status}}' | sort >&2 || true
-  for container in authentik-server n8n vexa-lite vexa-sso odoo; do
+  for container in caddy authentik-server n8n vexa-lite vexa-sso odoo; do
     if docker inspect "$container" >/dev/null 2>&1; then
       echo "---- logs: $container ----" >&2
       docker logs --tail 120 "$container" >&2 || true
