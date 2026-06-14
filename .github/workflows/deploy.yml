@@ -56,6 +56,26 @@ jobs:
         run: |
           set -euo pipefail
 
+          missing=0
+          require_secret() {
+            local name="$1"
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub Actions secret: $name" >&2
+              missing=1
+            fi
+          }
+
+          require_secret AUTHENTIK_ENV_B64
+          require_secret N8N_ENV_B64
+          require_secret VEXA_ENV_B64
+          require_secret ODOO_ENV_B64
+          require_secret GOOGLE_OAUTH_CLIENT_ID
+          require_secret GOOGLE_OAUTH_CLIENT_SECRET
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
           authentik_env="$(mktemp)"
           n8n_env="$(mktemp)"
           vexa_env="$(mktemp)"
@@ -84,7 +104,7 @@ jobs:
             printf '\nDB_USER=vexa\n' >> "$vexa_env"
           fi
           if ! grep -q '^DB_PASSWORD=' "$vexa_env"; then
-            admin_token="$(grep '^ADMIN_TOKEN=' "$vexa_env" | tail -n 1 | cut -d= -f2-)"
+            admin_token="$(grep '^ADMIN_TOKEN=' "$vexa_env" | tail -n 1 | cut -d= -f2- || true)"
             if [ -z "$admin_token" ]; then
               echo "VEXA_ENV_B64 must contain DB_PASSWORD or ADMIN_TOKEN" >&2
               exit 1

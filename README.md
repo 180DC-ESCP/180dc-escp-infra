@@ -19,6 +19,7 @@ Those remain server-local and are protected by database and volume backups.
 - authentik
 - n8n
 - Vexa Lite
+- Odoo
 - backup/restore scripts
 
 All exposed websites and tools are expected to pass through authentik before application access.
@@ -39,6 +40,13 @@ Required GitHub Actions secrets:
 - `ODOO_ENV_B64`
 - `GOOGLE_OAUTH_CLIENT_ID`
 - `GOOGLE_OAUTH_CLIENT_SECRET`
+
+Create each `*_ENV_B64` secret from a production env file with the same keys as the matching `.env.example` file:
+
+```sh
+base64 < vexa/.env.production | gh secret set VEXA_ENV_B64 --body-file -
+base64 < odoo/.env.production | gh secret set ODOO_ENV_B64 --body-file -
+```
 
 ## Authentik
 
