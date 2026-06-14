@@ -77,7 +77,7 @@ docker compose -f "$LIVE_ROOT/apps/n8n/docker-compose.yml" --env-file "$LIVE_ROO
 docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" pull
 docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" up -d --remove-orphans
 
-docker image prune -f >/dev/null
+docker image prune -a -f >/dev/null
 docker builder prune -f >/dev/null
 
 "$ROOT/scripts/verify.sh"
