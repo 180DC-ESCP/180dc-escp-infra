@@ -22,7 +22,7 @@ services:
       - n8n-internal
 
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:${N8N_IMAGE_TAG:-2.1.1}
     container_name: n8n
     restart: unless-stopped
     security_opt:
@@ -51,10 +51,15 @@ services:
       - N8N_SMTP_SSL=${N8N_SMTP_SSL}
       - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
       - N8N_TRUST_PROXY=${N8N_TRUST_PROXY}
+      - N8N_ADDITIONAL_NON_UI_ROUTES=auth
+      - EXTERNAL_HOOK_FILES=/home/node/.n8n/authentik-sso-hook.js
+      - AUTHENTIK_ALLOWED_EMAIL_DOMAIN=${AUTHENTIK_ALLOWED_EMAIL_DOMAIN}
+      - PLATFORM_ADMIN_EMAIL=${PLATFORM_ADMIN_EMAIL}
     env_file:
       - .env
     volumes:
       - n8n_data:/home/node/.n8n
+      - ./authentik-sso-hook.js:/home/node/.n8n/authentik-sso-hook.js:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,4 +76,3 @@ networks:
     external: true
   n8n-internal:
     driver: bridge
-

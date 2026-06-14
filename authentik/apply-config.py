@@ -12,6 +12,7 @@ from authentik.stages.user_write.models import UserWriteStage
 
 BASE_URL = os.environ.get("AUTHENTIK_BASE_URL", "https://login.180dc-escp.org").rstrip("/")
 ALLOWED_DOMAIN = os.environ.get("AUTHENTIK_ALLOWED_EMAIL_DOMAIN", "180dc.org").lstrip("@").lower()
+PLATFORM_ADMIN_EMAIL = os.environ.get("PLATFORM_ADMIN_EMAIL", "escp@180dc.org").strip().lower()
 GOOGLE_CLIENT_ID = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
 GOOGLE_CLIENT_SECRET = os.environ["GOOGLE_OAUTH_CLIENT_SECRET"]
 
@@ -44,11 +45,10 @@ write_stage.user_type = "internal"
 write_stage.save()
 
 policy_expression = f'''email = getattr(request.user, "email", "") or ""
-username = getattr(request.user, "username", "") or ""
+email = email.lower()
 return bool(
-    getattr(request.user, "is_superuser", False)
-    or email.lower().endswith("@{ALLOWED_DOMAIN}")
-    or username == "akadmin"
+    email == "{PLATFORM_ADMIN_EMAIL}"
+    or email.endswith("@{ALLOWED_DOMAIN}")
 )'''
 
 policy, _ = ExpressionPolicy.objects.update_or_create(
@@ -63,7 +63,9 @@ apps = [
     ("n8n", "n8n", "https://n8n.180dc-escp.org"),
     ("n8n hooks", "n8n-hooks", "https://hooks.180dc-escp.org"),
     ("BIMI", "bimi", "https://bimi.180dc-escp.org"),
-    ("Odoo retired", "odoo-retired", "https://odoo.180dc-escp.org"),
+    ("Vexa", "vexa", "https://vexa.180dc-escp.org"),
+    ("Vexa API Admin", "vexa-api-admin", "https://vexa-api.180dc-escp.org"),
+    ("Odoo", "odoo", "https://odoo.180dc-escp.org"),
 ]
 
 providers = []
@@ -108,7 +110,34 @@ for user in User.objects.filter(email__iendswith=f"@{ALLOWED_DOMAIN}"):
         user.is_active = True
         user.save()
 
+platform_admins = User.objects.filter(email__iexact=PLATFORM_ADMIN_EMAIL)
+for user in platform_admins:
+    changed = False
+    for field, value in {
+        "type": "internal",
+        "is_active": True,
+        "is_superuser": True,
+        "is_staff": True,
+    }.items():
+        if hasattr(user, field) and getattr(user, field) != value:
+            setattr(user, field, value)
+            changed = True
+    if changed:
+        user.save()
+
+if platform_admins.exists():
+    for username in ("akadmin", "admin"):
+        for user in User.objects.filter(username=username).exclude(email__iexact=PLATFORM_ADMIN_EMAIL):
+            changed = False
+            for field in ("is_superuser", "is_staff"):
+                if hasattr(user, field) and getattr(user, field):
+                    setattr(user, field, False)
+                    changed = True
+            if changed:
+                user.save()
+
 print("authentik config applied")
 print(f"allowed domain: @{ALLOWED_DOMAIN}")
+print(f"platform admin: {PLATFORM_ADMIN_EMAIL}")
 print("google-only source: google")
 print("managed apps:", ", ".join(name for name, _, _ in apps))

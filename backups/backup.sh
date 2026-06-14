@@ -62,10 +62,15 @@ backup_directory() {
 
 backup_postgres authentik-db authentik authentik authentik
 backup_postgres n8n-db n8n n8n n8n
+backup_postgres vexa-db vexa vexa vexa
+backup_postgres odoo-db odoo student_society odoo
 
 echo "Backing up Docker volumes..."
 backup_volume caddy_caddy_data caddy
 backup_volume n8n_n8n_data n8n_data
+backup_volume vexa_recordings vexa_recordings
+backup_volume vexa_tts_voices vexa_tts_voices
+backup_volume odoo_odoo-web-data odoo_web_data
 backup_directory /opt/180dc/authentik/data authentik_data
 
 echo "Cleaning up old backups (keeping last $RETENTION_DAYS days)..."

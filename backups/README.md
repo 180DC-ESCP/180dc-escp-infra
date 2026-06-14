@@ -8,7 +8,10 @@ The backup scope should include:
 
 - authentik PostgreSQL database
 - n8n PostgreSQL database
+- Vexa PostgreSQL database
+- Odoo PostgreSQL database
 - Caddy data/config volumes
 - n8n data volume
+- Vexa recordings and TTS voice cache volumes
+- Odoo filestore volume
 - authentik local data directory
-

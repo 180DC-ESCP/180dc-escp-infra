@@ -9,8 +9,13 @@ if [ "$#" -lt 2 ]; then
   echo "Components:"
   echo "  authentik-db    - Restore authentik database"
   echo "  n8n-db          - Restore n8n database"
+  echo "  vexa-db         - Restore Vexa database"
+  echo "  odoo-db         - Restore Odoo database"
   echo "  caddy           - Restore Caddy data volume"
   echo "  n8n-data        - Restore n8n data volume"
+  echo "  vexa-recordings - Restore Vexa recordings volume"
+  echo "  vexa-tts-voices - Restore Vexa TTS voices volume"
+  echo "  odoo-web-data   - Restore Odoo filestore volume"
   echo "  authentik-data  - Restore authentik data directory"
   exit 1
 fi
@@ -49,6 +54,22 @@ case "$COMPONENT" in
     echo "Starting n8n..."
     docker compose -f /opt/180dc/apps/n8n/docker-compose.yml start n8n
     ;;
+  vexa-db)
+    echo "Stopping Vexa..."
+    docker compose -f /opt/180dc/apps/vexa/docker-compose.yml stop vexa-lite
+    echo "Restoring database..."
+    gunzip -c "$BACKUP_FILE" | docker exec -i vexa-db psql -U vexa -d vexa
+    echo "Starting Vexa..."
+    docker compose -f /opt/180dc/apps/vexa/docker-compose.yml start vexa-lite
+    ;;
+  odoo-db)
+    echo "Stopping Odoo..."
+    docker compose -f /opt/180dc/apps/odoo/docker-compose.yml stop odoo
+    echo "Restoring database..."
+    gunzip -c "$BACKUP_FILE" | docker exec -i odoo-db psql -U odoo -d student_society
+    echo "Starting Odoo..."
+    docker compose -f /opt/180dc/apps/odoo/docker-compose.yml start odoo
+    ;;
   caddy)
     echo "Stopping Caddy..."
     docker compose -f /opt/180dc/caddy/docker-compose.yml stop
@@ -64,6 +85,30 @@ case "$COMPONENT" in
     docker run --rm -v n8n_n8n_data:/data -v "$BACKUP_DIR":/backup alpine sh -c "cd /data && rm -rf ./* && tar xzf /backup/$(basename "$BACKUP_FILE")"
     echo "Starting n8n..."
     docker compose -f /opt/180dc/apps/n8n/docker-compose.yml start n8n
+    ;;
+  vexa-recordings)
+    echo "Stopping Vexa..."
+    docker compose -f /opt/180dc/apps/vexa/docker-compose.yml stop vexa-lite
+    echo "Restoring volume..."
+    docker run --rm -v vexa_recordings:/data -v "$BACKUP_DIR":/backup alpine sh -c "cd /data && rm -rf ./* && tar xzf /backup/$(basename "$BACKUP_FILE")"
+    echo "Starting Vexa..."
+    docker compose -f /opt/180dc/apps/vexa/docker-compose.yml start vexa-lite
+    ;;
+  vexa-tts-voices)
+    echo "Stopping Vexa..."
+    docker compose -f /opt/180dc/apps/vexa/docker-compose.yml stop vexa-lite
+    echo "Restoring volume..."
+    docker run --rm -v vexa_tts_voices:/data -v "$BACKUP_DIR":/backup alpine sh -c "cd /data && rm -rf ./* && tar xzf /backup/$(basename "$BACKUP_FILE")"
+    echo "Starting Vexa..."
+    docker compose -f /opt/180dc/apps/vexa/docker-compose.yml start vexa-lite
+    ;;
+  odoo-web-data)
+    echo "Stopping Odoo..."
+    docker compose -f /opt/180dc/apps/odoo/docker-compose.yml stop odoo
+    echo "Restoring volume..."
+    docker run --rm -v odoo_odoo-web-data:/data -v "$BACKUP_DIR":/backup alpine sh -c "cd /data && rm -rf ./* && tar xzf /backup/$(basename "$BACKUP_FILE")"
+    echo "Starting Odoo..."
+    docker compose -f /opt/180dc/apps/odoo/docker-compose.yml start odoo
     ;;
   authentik-data)
     echo "Stopping authentik services..."
@@ -81,4 +126,3 @@ case "$COMPONENT" in
 esac
 
 echo "=== Restore completed ==="
-

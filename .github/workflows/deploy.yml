@@ -49,6 +49,8 @@ jobs:
         env:
           AUTHENTIK_ENV_B64: ${{ secrets.AUTHENTIK_ENV_B64 }}
           N8N_ENV_B64: ${{ secrets.N8N_ENV_B64 }}
+          VEXA_ENV_B64: ${{ secrets.VEXA_ENV_B64 }}
+          ODOO_ENV_B64: ${{ secrets.ODOO_ENV_B64 }}
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
         run: |
@@ -56,6 +58,8 @@ jobs:
 
           authentik_env="$(mktemp)"
           n8n_env="$(mktemp)"
+          vexa_env="$(mktemp)"
+          odoo_env="$(mktemp)"
 
           printf '%s' "$AUTHENTIK_ENV_B64" | base64 -d > "$authentik_env"
           {
@@ -63,19 +67,36 @@ jobs:
             printf 'GOOGLE_OAUTH_CLIENT_SECRET=%s\n' "$GOOGLE_OAUTH_CLIENT_SECRET"
             printf 'AUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
             printf 'AUTHENTIK_BASE_URL=https://login.180dc-escp.org\n'
+            printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
           } >> "$authentik_env"
 
           printf '%s' "$N8N_ENV_B64" | base64 -d > "$n8n_env"
+          {
+            printf '\nAUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
+            printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
+          } >> "$n8n_env"
+
+          printf '%s' "$VEXA_ENV_B64" | base64 -d > "$vexa_env"
+          {
+            printf '\nAUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
+            printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
+          } >> "$vexa_env"
+
+          printf '%s' "$ODOO_ENV_B64" | base64 -d > "$odoo_env"
 
           ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "install -m 700 -d /opt/180dc/authentik /opt/180dc/apps/n8n"
+            "install -m 700 -d /opt/180dc/authentik /opt/180dc/apps/n8n /opt/180dc/apps/vexa /opt/180dc/apps/odoo"
 
           scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$authentik_env" \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/authentik/.env"
           scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$n8n_env" \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/apps/n8n/.env"
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$vexa_env" \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/apps/vexa/.env"
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$odoo_env" \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/apps/odoo/.env"
 
-          rm -f "$authentik_env" "$n8n_env"
+          rm -f "$authentik_env" "$n8n_env" "$vexa_env" "$odoo_env"
 
       - name: Deploy
         shell: bash
