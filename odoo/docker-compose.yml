@@ -43,10 +43,10 @@ services:
       - .:/mnt/import:ro
     command:
       - odoo
+      - server
       - -d
       - ${ODOO_DATABASE:-student_society}
       - --proxy-mode
-      - --admin-passwd=${ODOO_ADMIN_PASSWORD:?odoo admin password required}
       - --db_host=db
       - --db_user=${POSTGRES_USER:-odoo}
       - --db_password=${POSTGRES_PASSWORD:?database password required}
@@ -74,13 +74,13 @@ services:
       - .:/mnt/import:ro
     command:
       - odoo
+      - server
       - -d
       - ${ODOO_DATABASE:-student_society}
       - -i
       - student_society
       - --without-demo=True
       - --stop-after-init
-      - --admin-passwd=${ODOO_ADMIN_PASSWORD:?odoo admin password required}
       - --db_host=db
       - --db_user=${POSTGRES_USER:-odoo}
       - --db_password=${POSTGRES_PASSWORD:?database password required}

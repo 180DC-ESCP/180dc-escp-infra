@@ -48,6 +48,7 @@ services:
       VEXA_USER_INFO_COOKIE_NAME: vexa-user-info-lite
       TRANSCRIPTION_SERVICE_URL: ${TRANSCRIPTION_SERVICE_URL:?transcription service url required}
       TRANSCRIPTION_SERVICE_TOKEN: ${TRANSCRIPTION_SERVICE_TOKEN:?transcription service token required}
+      SKIP_TRANSCRIPTION_CHECK: ${SKIP_TRANSCRIPTION_CHECK:-true}
       STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
       LOCAL_STORAGE_DIR: /var/lib/vexa/recordings
       PIPER_VOICES_DIR: /app/voices
