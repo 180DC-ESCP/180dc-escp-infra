@@ -4,6 +4,7 @@ from authentik.core.models import Application, User
 from authentik.flows.models import Flow
 from authentik.outposts.models import Outpost
 from authentik.policies.expression.models import ExpressionPolicy
+from authentik.policies.models import PolicyBinding
 from authentik.providers.proxy.models import ProxyProvider
 from authentik.sources.oauth.models import OAuthSource
 from authentik.stages.identification.models import IdentificationStage
@@ -19,6 +20,20 @@ GOOGLE_CLIENT_SECRET = os.environ["GOOGLE_OAUTH_CLIENT_SECRET"]
 
 def flow(slug):
     return Flow.objects.get(slug=slug)
+
+
+def bind_single_policy(app, policy):
+    PolicyBinding.objects.filter(target=app).exclude(policy=policy).delete()
+    PolicyBinding.objects.update_or_create(
+        target=app,
+        policy=policy,
+        defaults={
+            "enabled": True,
+            "negate": False,
+            "order": 0,
+            "timeout": 30,
+        },
+    )
 
 
 google, _ = OAuthSource.objects.update_or_create(
@@ -93,7 +108,7 @@ for name, slug, external_host in apps:
             "policy_engine_mode": "any",
         },
     )
-    app.policies.set([policy])
+    bind_single_policy(app, policy)
 
 outpost = Outpost.objects.filter(name="authentik Embedded Outpost").first()
 if outpost:
