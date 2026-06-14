@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-vexa}
       POSTGRES_USER: ${DB_USER:-vexa}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-${POSTGRES_PASSWORD:?database password required}}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?database password required}
     command:
       - postgres
       - -c
@@ -35,8 +35,8 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-vexa}:${DB_PASSWORD:-${POSTGRES_PASSWORD:?database password required}}@postgres:5432/${DB_NAME:-vexa}
-      DB_PASSWORD: ${DB_PASSWORD:-${POSTGRES_PASSWORD:?database password required}}
+      DATABASE_URL: postgresql://${DB_USER:-vexa}:${DB_PASSWORD:?database password required}@postgres:5432/${DB_NAME:-vexa}
+      DB_PASSWORD: ${DB_PASSWORD:?database password required}
       DB_SSL_MODE: disable
       REDIS_URL: redis://localhost:6379/0
       ADMIN_API_TOKEN: ${ADMIN_TOKEN:?admin token required}

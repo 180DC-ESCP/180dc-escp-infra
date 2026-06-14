@@ -77,6 +77,20 @@ jobs:
           } >> "$n8n_env"
 
           printf '%s' "$VEXA_ENV_B64" | base64 -d > "$vexa_env"
+          if ! grep -q '^DB_NAME=' "$vexa_env"; then
+            printf '\nDB_NAME=vexa\n' >> "$vexa_env"
+          fi
+          if ! grep -q '^DB_USER=' "$vexa_env"; then
+            printf '\nDB_USER=vexa\n' >> "$vexa_env"
+          fi
+          if ! grep -q '^DB_PASSWORD=' "$vexa_env"; then
+            admin_token="$(grep '^ADMIN_TOKEN=' "$vexa_env" | tail -n 1 | cut -d= -f2-)"
+            if [ -z "$admin_token" ]; then
+              echo "VEXA_ENV_B64 must contain DB_PASSWORD or ADMIN_TOKEN" >&2
+              exit 1
+            fi
+            printf '\nDB_PASSWORD=%s\n' "$admin_token" >> "$vexa_env"
+          fi
           {
             printf '\nAUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
             printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
