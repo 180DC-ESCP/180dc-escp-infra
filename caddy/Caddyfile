@@ -51,5 +51,9 @@ vexa-api.180dc-escp.org {
 
 odoo.180dc-escp.org {
 	import forward_auth
+
+	@signin path /signin /login /web/login
+	redir @signin /auth/authentik/login 302
+
 	reverse_proxy odoo:8069
 }

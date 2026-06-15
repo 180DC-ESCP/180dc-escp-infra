@@ -143,6 +143,8 @@ The Odoo migration CSVs were one-time production inputs. They are not part of th
 Odoo is deployed as a managed app at `https://odoo.180dc-escp.org` and protected by authentik at the reverse proxy. Normal deploys start the existing Odoo database without reinstalling modules or rerunning CSV imports.
 Odoo migration data lives only in the initialized production database and its backups. Do not recommit member/client migration exports to this repository.
 
+Odoo uses `student_society.controllers.authentik_sso` for Authentik SSO. Caddy redirects `/login`, `/signin`, and `/web/login` to `/auth/authentik/login`; the controller consumes verified Authentik identity headers, provisions or updates an internal Odoo user, assigns member/admin groups, and finalizes the Odoo session.
+
 Initial production setup is automatic and one-time during deploy:
 
 ```sh
@@ -151,8 +153,6 @@ cd /opt/180dc-git/current
 ```
 
 The `init` profile installs `student_society` into the `student_society` database when the database has no Odoo schema yet. After initialization, future deploys only start the existing `odoo` service.
-
-Native Authentik/Odoo SSO should be configured through Odoo's OAuth Authentication settings or a managed Odoo auth addon after the database exists and `escp@180dc.org` is the administrator.
 
 ## Manual deploy from server
 
