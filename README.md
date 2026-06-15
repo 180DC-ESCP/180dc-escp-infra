@@ -42,7 +42,10 @@ Required GitHub Actions secrets:
 - `ODOO_ENV_B64`
 - `GOOGLE_OAUTH_CLIENT_ID`
 - `GOOGLE_OAUTH_CLIENT_SECRET`
-- `SSO_SHARED_SECRET`
+
+Optional GitHub Actions secrets:
+
+- `SSO_SHARED_SECRET` - if omitted, the deploy workflow generates a fresh internal bridge secret and writes it consistently to Caddy, n8n, Vexa, and Odoo.
 
 Create each `*_ENV_B64` secret from a production env file with the same keys as the matching `.env.example` file:
 
