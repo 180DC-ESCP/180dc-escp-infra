@@ -197,7 +197,6 @@ wait_for_container_running odoo
 
 docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/caddy/.env" pull
 docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/caddy/.env" up -d --remove-orphans
-docker exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 
 docker image prune -a -f >/dev/null
 docker builder prune -f >/dev/null
