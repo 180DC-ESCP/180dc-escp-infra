@@ -53,7 +53,6 @@ jobs:
           ODOO_ENV_B64: ${{ secrets.ODOO_ENV_B64 }}
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
-          SSO_SHARED_SECRET: ${{ secrets.SSO_SHARED_SECRET }}
         run: |
           set -euo pipefail
 
@@ -77,9 +76,7 @@ jobs:
             exit 1
           fi
 
-          if [ -z "${SSO_SHARED_SECRET:-}" ]; then
-            SSO_SHARED_SECRET="$(openssl rand -hex 32)"
-          fi
+          SSO_SHARED_SECRET="$(openssl rand -hex 32)"
 
           authentik_env="$(mktemp)"
           n8n_env="$(mktemp)"
