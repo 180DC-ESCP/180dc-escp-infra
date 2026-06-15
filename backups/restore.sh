@@ -72,11 +72,11 @@ case "$COMPONENT" in
     ;;
   caddy)
     echo "Stopping Caddy..."
-    docker compose -f /opt/180dc/caddy/docker-compose.yml stop
+    docker compose -f /opt/180dc/caddy/docker-compose.yml --env-file /opt/180dc/caddy/.env stop
     echo "Restoring volume..."
     docker run --rm -v caddy_caddy_data:/data -v "$BACKUP_DIR":/backup alpine sh -c "cd /data && rm -rf ./* && tar xzf /backup/$(basename "$BACKUP_FILE")"
     echo "Starting Caddy..."
-    docker compose -f /opt/180dc/caddy/docker-compose.yml start
+    docker compose -f /opt/180dc/caddy/docker-compose.yml --env-file /opt/180dc/caddy/.env start
     ;;
   n8n-data)
     echo "Stopping n8n..."
