@@ -167,7 +167,7 @@ sync_dir "$ROOT/caddy" "$LIVE_ROOT/caddy"
 sync_backups_config "$ROOT/backups" "$LIVE_ROOT/backups"
 configure_odoo_secrets
 
-install -d "$LIVE_ROOT/authentik/data" "$LIVE_ROOT/authentik/certs" "$LIVE_ROOT/authentik/custom-templates" "$LIVE_ROOT/caddy/static"
+install -d "$LIVE_ROOT/authentik/data" "$LIVE_ROOT/authentik/certs" "$LIVE_ROOT/authentik/custom-templates"
 
 docker compose -f "$LIVE_ROOT/authentik/docker-compose.yml" --env-file "$LIVE_ROOT/authentik/.env" pull
 docker compose -f "$LIVE_ROOT/authentik/docker-compose.yml" --env-file "$LIVE_ROOT/authentik/.env" up -d --remove-orphans

@@ -24,20 +24,6 @@ hooks.180dc-escp.org {
 	reverse_proxy n8n:5678
 }
 
-bimi.180dc-escp.org {
-	import forward_auth
-
-	@bimi path /.well-known/bimi/*
-	handle @bimi {
-		root * /static
-		file_server
-	}
-
-	handle {
-		respond 404
-	}
-}
-
 vexa.180dc-escp.org {
 	import forward_auth
 

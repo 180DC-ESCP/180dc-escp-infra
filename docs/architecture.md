@@ -41,7 +41,6 @@ Currently managed public hosts:
 - `login.180dc-escp.org`
 - `n8n.180dc-escp.org`
 - `hooks.180dc-escp.org`
-- `bimi.180dc-escp.org`
 - `vexa.180dc-escp.org`
 - `vexa-api.180dc-escp.org`
 - `odoo.180dc-escp.org`

@@ -77,11 +77,12 @@ invalidation_flow = flow("default-provider-invalidation-flow")
 apps = [
     ("n8n", "n8n", "https://n8n.180dc-escp.org"),
     ("n8n hooks", "n8n-hooks", "https://hooks.180dc-escp.org"),
-    ("BIMI", "bimi", "https://bimi.180dc-escp.org"),
     ("Vexa", "vexa", "https://vexa.180dc-escp.org"),
     ("Vexa API Admin", "vexa-api-admin", "https://vexa-api.180dc-escp.org"),
     ("Odoo", "odoo", "https://odoo.180dc-escp.org"),
 ]
+obsolete_app_slugs = {"bimi"}
+obsolete_provider_names = {"BIMI"}
 
 providers = []
 for name, slug, external_host in apps:
@@ -118,6 +119,9 @@ if outpost:
     config.authentik_host_browser = BASE_URL
     outpost.config = config
     outpost.save()
+
+Application.objects.filter(slug__in=obsolete_app_slugs).delete()
+ProxyProvider.objects.filter(name__in=obsolete_provider_names).delete()
 
 for user in User.objects.filter(email__iendswith=f"@{ALLOWED_DOMAIN}"):
     if user.type != "internal" or not user.is_active:

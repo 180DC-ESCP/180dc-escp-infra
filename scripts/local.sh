@@ -7,9 +7,6 @@ HOSTS=(
   login.180dc-escp.org
   n8n.180dc-escp.org
   hooks.180dc-escp.org
-  bimi.180dc-escp.org
-  vexa.180dc-escp.org
-  vexa-api.180dc-escp.org
   odoo.180dc-escp.org
 )
 
@@ -19,7 +16,7 @@ Usage: scripts/local.sh <command>
 
 Commands:
   init      Create local .env files and generated local overrides
-  up        Start the full local stack and apply Authentik config
+  up        Start the local stack and apply Authentik config
   verify    Check local containers and public routes
   status    Show local container status
   logs      Follow logs for all local services
@@ -27,7 +24,7 @@ Commands:
   reset     Stop local services and delete local Docker volumes
 
 Before "up", add these hostnames to /etc/hosts pointing at 127.0.0.1:
-  login.180dc-escp.org n8n.180dc-escp.org hooks.180dc-escp.org bimi.180dc-escp.org vexa.180dc-escp.org vexa-api.180dc-escp.org odoo.180dc-escp.org
+  login.180dc-escp.org n8n.180dc-escp.org hooks.180dc-escp.org odoo.180dc-escp.org
 
 Full SSO requires real GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET
 in authentik/.env. Keep .env files local; they are gitignored.
@@ -90,7 +87,6 @@ ensure_env() {
 ensure_envs() {
   ensure_env authentik
   ensure_env n8n
-  ensure_env vexa
   ensure_env odoo
 
   env_set_if_placeholder "$ROOT/authentik/.env" PG_PASS "$(random_hex)"
@@ -100,9 +96,6 @@ ensure_envs() {
 
   env_set_if_placeholder "$ROOT/n8n/.env" POSTGRES_PASSWORD "$(random_hex)"
   env_set_if_placeholder "$ROOT/n8n/.env" N8N_ENCRYPTION_KEY "$(random_hex)"
-
-  env_set_if_placeholder "$ROOT/vexa/.env" DB_PASSWORD "$(random_hex)"
-  env_set_if_placeholder "$ROOT/vexa/.env" ADMIN_TOKEN "$(random_hex)"
 
   env_set_if_placeholder "$ROOT/odoo/.env" POSTGRES_PASSWORD "$(random_hex)"
   env_set_if_placeholder "$ROOT/odoo/.env" ODOO_ADMIN_PASSWORD "$(random_hex)"
@@ -114,7 +107,21 @@ render_local_files() {
 
   {
     printf '{\n\tlocal_certs\n}\n\n'
-    cat "$ROOT/caddy/Caddyfile"
+    awk '
+      /^(vexa|vexa-api)\.180dc-escp\.org[[:space:]]*\{/ {
+        skip = 1
+        depth = gsub(/\{/, "{") - gsub(/\}/, "}")
+        next
+      }
+      skip {
+        depth += gsub(/\{/, "{") - gsub(/\}/, "}")
+        if (depth <= 0) {
+          skip = 0
+        }
+        next
+      }
+      { print }
+    ' "$ROOT/caddy/Caddyfile"
   } > "$LOCAL_DIR/Caddyfile"
 
   cat > "$LOCAL_DIR/caddy.compose.yml" <<EOF
@@ -182,10 +189,6 @@ dc_n8n() {
   docker compose --project-directory "$ROOT/n8n" -f "$ROOT/n8n/docker-compose.yml" --env-file "$ROOT/n8n/.env" "$@"
 }
 
-dc_vexa() {
-  docker compose --project-directory "$ROOT/vexa" -f "$ROOT/vexa/docker-compose.yml" --env-file "$ROOT/vexa/.env" "$@"
-}
-
 dc_odoo() {
   docker compose --project-directory "$ROOT/odoo" -f "$ROOT/odoo/docker-compose.yml" -f "$LOCAL_DIR/odoo.compose.yml" --env-file "$ROOT/odoo/.env" "$@"
 }
@@ -212,7 +215,7 @@ wait_for_container_running() {
 wait_for_authentik() {
   local tries=120
   while [ "$tries" -gt 0 ]; do
-    if docker exec authentik-server ak version >/dev/null 2>&1; then
+    if docker inspect -f '{{.State.Health.Status}}' authentik-server 2>/dev/null | grep -qx healthy; then
       return 0
     fi
     tries=$((tries - 1))
@@ -261,7 +264,6 @@ cmd_up() {
   dc_authentik exec -T server ak shell < "$ROOT/authentik/apply-config.py"
 
   dc_n8n up -d
-  dc_vexa up -d
 
   dc_odoo up -d db
   wait_for_odoo_db
@@ -275,6 +277,8 @@ cmd_up() {
   wait_for_container_running odoo
 
   dc_caddy up -d
+  wait_for_container_running caddy
+  docker exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
   cmd_verify
 }
 
@@ -284,12 +288,20 @@ cmd_verify() {
     https://login.180dc-escp.org/ \
     https://n8n.180dc-escp.org/ \
     https://hooks.180dc-escp.org/ \
-    https://bimi.180dc-escp.org/ \
-    https://vexa.180dc-escp.org/ \
-    https://vexa-api.180dc-escp.org/admin/users \
     https://odoo.180dc-escp.org/
   do
-    code="$(curl -k -sS -o /dev/null -w '%{http_code}' "$url")"
+    code=""
+    for attempt in 1 2 3 4 5; do
+      if code="$(curl -k -sS -o /dev/null -w '%{http_code}' "$url")"; then
+        break
+      fi
+      echo "retrying $url after curl failure ($attempt/5)" >&2
+      sleep 5
+    done
+    if [ -z "$code" ]; then
+      echo "curl failed for $url" >&2
+      return 1
+    fi
     case "$url:$code" in
       *login.180dc-escp.org*:200|*login.180dc-escp.org*:302|*:302)
         echo "ok $code $url"
@@ -309,7 +321,6 @@ cmd_status() {
 cmd_logs() {
   dc_caddy logs -f &
   dc_odoo logs -f &
-  dc_vexa logs -f &
   dc_n8n logs -f &
   dc_authentik logs -f &
   wait
@@ -320,7 +331,6 @@ cmd_down() {
   render_local_files
   dc_caddy down --remove-orphans || true
   dc_odoo down --remove-orphans || true
-  dc_vexa down --remove-orphans || true
   dc_n8n down --remove-orphans || true
   dc_authentik down --remove-orphans || true
 }
@@ -330,7 +340,6 @@ cmd_reset() {
   render_local_files
   dc_caddy down -v --remove-orphans || true
   dc_odoo down -v --remove-orphans || true
-  dc_vexa down -v --remove-orphans || true
   dc_n8n down -v --remove-orphans || true
   dc_authentik down -v --remove-orphans || true
   rm -rf "$LOCAL_DIR"

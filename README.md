@@ -50,14 +50,16 @@ base64 < vexa/.env.production | gh secret set VEXA_ENV_B64 --body-file -
 base64 < odoo/.env.production | gh secret set ODOO_ENV_B64 --body-file -
 ```
 
-## Local Full-Stack Run
+## Local Stack Run
 
-Use `scripts/local.sh` to run the same service topology locally with Docker Compose. This is not a separate test fixture: it uses the real Compose files, generated local overrides under `.local/`, local `.env` files, and the same public hostnames mapped to `127.0.0.1`.
+Use `scripts/local.sh` to run the core service topology locally with Docker Compose: Authentik, n8n, Odoo, and Caddy. Vexa and its local Whisper transcription container are intentionally excluded from local runs because the production stack uses large speech images that are not needed for Mac smoke testing.
+
+This is not a separate test fixture: it uses the real Compose files, generated local overrides under `.local/`, local `.env` files, and the same public hostnames mapped to `127.0.0.1`.
 
 Add local DNS entries:
 
 ```sh
-sudo sh -c 'printf "\n127.0.0.1 login.180dc-escp.org n8n.180dc-escp.org hooks.180dc-escp.org bimi.180dc-escp.org vexa.180dc-escp.org vexa-api.180dc-escp.org odoo.180dc-escp.org\n" >> /etc/hosts'
+sudo sh -c 'printf "\n127.0.0.1 login.180dc-escp.org n8n.180dc-escp.org hooks.180dc-escp.org odoo.180dc-escp.org\n" >> /etc/hosts'
 ```
 
 Create local env files:
@@ -79,7 +81,7 @@ The Google OAuth redirect URI for local and prod is:
 https://login.180dc-escp.org/source/oauth/callback/google/
 ```
 
-Start everything:
+Start the local stack:
 
 ```sh
 ./scripts/local.sh up
@@ -115,7 +117,7 @@ The CSVs are mounted only into the local Odoo init container. They remain ignore
 - Google-only login identification
 - internal-user enrollment for Google users
 - `@180dc.org` allow policy
-- proxy applications/providers for n8n, hooks, BIMI, Vexa, and Odoo
+- proxy applications/providers for n8n, hooks, Vexa, and Odoo
 - embedded outpost host/browser settings
 
 Auth flows, users, sessions, generated tokens, and audit/event state remain in the authentik database.
