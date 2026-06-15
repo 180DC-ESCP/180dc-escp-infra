@@ -5,6 +5,7 @@ const N8N_JWT_SERVICE_PATH = '/usr/local/lib/node_modules/n8n/dist/services/jwt.
 
 const allowedDomain = (process.env.AUTHENTIK_ALLOWED_EMAIL_DOMAIN || '180dc.org').replace(/^@/, '').toLowerCase();
 const platformAdminEmail = (process.env.PLATFORM_ADMIN_EMAIL || 'escp@180dc.org').toLowerCase();
+const ssoSharedSecret = process.env.SSO_SHARED_SECRET || '';
 
 function header(req, name) {
   return req.headers[name.toLowerCase()];
@@ -12,6 +13,10 @@ function header(req, name) {
 
 function isAllowedEmail(email) {
   return email === platformAdminEmail || email.endsWith(`@${allowedDomain}`);
+}
+
+function hasValidSsoSecret(req) {
+  return Boolean(ssoSharedSecret) && header(req, 'x-authentik-sso-secret') === ssoSharedSecret;
 }
 
 function splitName(name, email) {
@@ -43,6 +48,10 @@ function createAuthToken(user, jwtService) {
   );
 }
 
+function roleForEmail(email) {
+  return email === platformAdminEmail ? 'global:owner' : 'global:member';
+}
+
 async function createN8nUser(User, email, name, roleSlug) {
   const { firstName, lastName } = splitName(name, email);
   const result = await User.createUserWithProject({
@@ -53,6 +62,29 @@ async function createN8nUser(User, email, name, roleSlug) {
     role: { slug: roleSlug },
   });
   return result.user;
+}
+
+async function reconcileN8nUser(User, user, email, name) {
+  const { firstName, lastName } = splitName(name, email);
+  const roleSlug = roleForEmail(email);
+  const changed =
+    user.firstName !== firstName ||
+    user.lastName !== lastName ||
+    user.roleSlug !== roleSlug ||
+    user.disabled;
+
+  if (changed) {
+    await User.query(
+      'UPDATE "user" SET "firstName" = $1, "lastName" = $2, "roleSlug" = $3, "disabled" = false, "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = $4',
+      [firstName, lastName, roleSlug, user.id],
+    );
+    user = await User.findOne({
+      where: { email },
+      relations: ['role'],
+    });
+  }
+
+  return user;
 }
 
 module.exports = {
@@ -67,6 +99,10 @@ module.exports = {
 
         app.get('/auth/authentik/login', async (req, res) => {
           try {
+            if (!hasValidSsoSecret(req)) {
+              return res.status(403).send('SSO bridge secret is missing or invalid.');
+            }
+
             const email = String(header(req, 'x-authentik-email') || '').trim().toLowerCase();
             const name = String(header(req, 'x-authentik-name') || '').trim();
 
@@ -90,8 +126,10 @@ module.exports = {
                 User,
                 email,
                 name,
-                email === platformAdminEmail ? 'global:owner' : 'global:member',
+                roleForEmail(email),
               );
+            } else {
+              user = await reconcileN8nUser(User, user, email, name);
             }
 
             const authToken = createAuthToken(user, jwtService);

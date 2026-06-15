@@ -42,6 +42,7 @@ Required GitHub Actions secrets:
 - `ODOO_ENV_B64`
 - `GOOGLE_OAUTH_CLIENT_ID`
 - `GOOGLE_OAUTH_CLIENT_SECRET`
+- `SSO_SHARED_SECRET`
 
 Create each `*_ENV_B64` secret from a production env file with the same keys as the matching `.env.example` file:
 
@@ -124,17 +125,17 @@ Auth flows, users, sessions, generated tokens, and audit/event state remain in t
 
 ## n8n
 
-n8n uses a custom Authentik SSO external hook mounted from `n8n/authentik-sso-hook.js`. Authentik authenticates the Google user at the proxy, Caddy forwards verified identity headers, and the hook provisions/signs an n8n session. The n8n image is pinned by `N8N_IMAGE_TAG`; update it deliberately and verify the hook because it depends on n8n's internal JWT/user APIs.
+n8n uses a custom Authentik SSO external hook mounted from `n8n/authentik-sso-hook.js`. Authentik authenticates the Google user at the proxy, Caddy forwards verified identity headers plus the internal SSO bridge secret, and the hook reconciles the n8n user before signing an n8n session. The n8n image is pinned by `N8N_IMAGE_TAG`; update it deliberately and verify the hook because it depends on n8n's internal JWT/user APIs.
 
 ## Vexa
 
-Vexa Lite dashboard is protected by authentik at `https://vexa.180dc-escp.org` and is visible to all allowed `@180dc.org` Google users. The `vexa/sso-bridge.py` service turns the verified Authentik identity headers into a Vexa user and dashboard session token. The API gateway is available at `https://vexa-api.180dc-escp.org` and internally at `http://vexa-lite:8056` from the shared Docker proxy network.
+Vexa Lite dashboard is protected by authentik at `https://vexa.180dc-escp.org` and is visible to all allowed `@180dc.org` Google users. The `vexa/sso-bridge.py` service verifies the internal SSO bridge secret, turns the verified Authentik identity headers into a reconciled Vexa user, and creates a dashboard session token. The API gateway is available at `https://vexa-api.180dc-escp.org` and internally at `http://vexa-lite:8056` from the shared Docker proxy network.
 
 Transcription is local. Vexa Lite points at the private `whisper` service in `vexa/docker-compose.yml`, which runs Whisper `base` through an OpenAI-compatible `/v1/audio/transcriptions` endpoint on the internal Vexa network. The Whisper service is not exposed through Caddy.
 
 Vexa API access is still controlled with Vexa API tokens. Public Admin API paths under `https://vexa-api.180dc-escp.org/admin/*` are protected by authentik.
 
-The Odoo migration CSVs were one-time production inputs. They are not part of the managed repo or deploy path.
+The Odoo migration CSVs were production migration inputs. They are not part of the managed repo or deploy path.
 
 `escp@180dc.org` is the platform admin target. Existing default/admin owner accounts in authentik, n8n, and Odoo live in their application databases; remove or demote them during live migration after confirming `escp@180dc.org` can sign in and administer the app.
 
@@ -143,9 +144,9 @@ The Odoo migration CSVs were one-time production inputs. They are not part of th
 Odoo is deployed as a managed app at `https://odoo.180dc-escp.org` and protected by authentik at the reverse proxy. Normal deploys start the existing Odoo database without reinstalling modules or rerunning CSV imports.
 Odoo migration data lives only in the initialized production database and its backups. Do not recommit member/client migration exports to this repository.
 
-Odoo uses `student_society.controllers.authentik_sso` for Authentik SSO. Caddy redirects `/login`, `/signin`, and `/web/login` to `/auth/authentik/login`; the controller consumes verified Authentik identity headers, provisions or updates an internal Odoo user, assigns member/admin groups, and finalizes the Odoo session.
+Odoo uses `student_society.controllers.authentik_sso` for Authentik SSO. Caddy redirects `/login`, `/signin`, and `/web/login` to `/auth/authentik/login`; the controller verifies the internal SSO bridge secret, consumes verified Authentik identity headers, reconciles an internal Odoo user, assigns member/admin groups, and finalizes the Odoo session.
 
-Initial production setup is automatic and one-time during deploy:
+Initial production setup is automatic during deploy:
 
 ```sh
 cd /opt/180dc-git/current

@@ -10,6 +10,7 @@ _logger = logging.getLogger(__name__)
 
 ALLOWED_DOMAIN = os.environ.get("AUTHENTIK_ALLOWED_EMAIL_DOMAIN", "180dc.org").lstrip("@").lower()
 PLATFORM_ADMIN_EMAIL = os.environ.get("PLATFORM_ADMIN_EMAIL", "escp@180dc.org").strip().lower()
+SSO_SHARED_SECRET = os.environ.get("SSO_SHARED_SECRET", "")
 
 
 def _header(name):
@@ -18,6 +19,10 @@ def _header(name):
 
 def _allowed_email(email):
     return email == PLATFORM_ADMIN_EMAIL or email.endswith(f"@{ALLOWED_DOMAIN}")
+
+
+def _valid_sso_secret():
+    return bool(SSO_SHARED_SECRET) and _header("X-Authentik-SSO-Secret") == SSO_SHARED_SECRET
 
 
 def _safe_redirect(target):
@@ -30,6 +35,9 @@ class AuthentikSSO(http.Controller):
     @http.route("/auth/authentik/login", type="http", auth="none", readonly=False)
     def login(self, redirect=None, **kwargs):
         ensure_db()
+
+        if not _valid_sso_secret():
+            return request.make_response("SSO bridge secret is missing or invalid.", status=403)
 
         email = _header("X-Authentik-Email").lower()
         name = _header("X-Authentik-Name") or email
@@ -57,7 +65,7 @@ class AuthentikSSO(http.Controller):
                 "mail_create_nosubscribe": True,
             },
         )
-        User = env["res.users"].sudo()
+        User = env["res.users"].sudo().with_context(active_test=False)
         Partner = env["res.partner"].sudo()
 
         user = User.search(["|", ("login", "=", email), ("email", "=", email)], limit=1)

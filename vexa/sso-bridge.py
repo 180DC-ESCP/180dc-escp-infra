@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ALLOWED_DOMAIN = os.environ.get("AUTHENTIK_ALLOWED_EMAIL_DOMAIN", "180dc.org").lstrip("@").lower()
 PLATFORM_ADMIN_EMAIL = os.environ.get("PLATFORM_ADMIN_EMAIL", "escp@180dc.org").strip().lower()
+SSO_SHARED_SECRET = os.environ.get("SSO_SHARED_SECRET", "")
 ADMIN_API_URL = os.environ.get("VEXA_ADMIN_API_URL", "http://vexa-lite:8056").rstrip("/")
 ADMIN_TOKEN = os.environ["VEXA_ADMIN_API_KEY"]
 TOKEN_SCOPES = os.environ.get("VEXA_SSO_TOKEN_SCOPES", "bot,tx,browser")
@@ -21,6 +22,10 @@ COOKIE_MAX_AGE = int(os.environ.get("VEXA_SSO_COOKIE_MAX_AGE", str(30 * 24 * 60 
 
 def allowed_email(email):
     return email == PLATFORM_ADMIN_EMAIL or email.endswith(f"@{ALLOWED_DOMAIN}")
+
+
+def valid_sso_secret(headers):
+    return bool(SSO_SHARED_SECRET) and headers.get("X-Authentik-SSO-Secret") == SSO_SHARED_SECRET
 
 
 def api_request(method, path, payload=None):
@@ -36,20 +41,32 @@ def api_request(method, path, payload=None):
 
 def get_or_create_user(email, name):
     encoded_email = urllib.parse.quote(email, safe="")
+    payload = {
+        "email": email,
+        "name": name or email,
+        "max_concurrent_bots": MAX_CONCURRENT_BOTS,
+    }
     try:
-        return api_request("GET", f"/admin/users/email/{encoded_email}")
+        user = api_request("GET", f"/admin/users/email/{encoded_email}")
     except urllib.error.HTTPError as error:
         if error.code != 404:
             raise
-    return api_request(
-        "POST",
-        "/admin/users",
-        {
-            "email": email,
-            "name": name or email,
-            "max_concurrent_bots": MAX_CONCURRENT_BOTS,
-        },
-    )
+        return api_request("POST", "/admin/users", payload)
+    return reconcile_user(user, payload)
+
+
+def reconcile_user(user, payload):
+    user_id = user.get("id")
+    if not user_id:
+        return user
+    if user.get("email") == payload["email"] and user.get("name") == payload["name"] and user.get("max_concurrent_bots") == payload["max_concurrent_bots"]:
+        return user
+    try:
+        return api_request("PATCH", f"/admin/users/{user_id}", payload)
+    except urllib.error.HTTPError as error:
+        if error.code in {404, 405}:
+            return user
+        raise
 
 
 def create_user_token(user_id):
@@ -78,6 +95,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         try:
+            if not valid_sso_secret(self.headers):
+                self.send_error(403, "SSO bridge secret is missing or invalid")
+                return
+
             email = (self.headers.get("X-Authentik-Email") or "").strip().lower()
             name = (self.headers.get("X-Authentik-Name") or "").strip() or email
             if not email or not allowed_email(email):
@@ -104,6 +125,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path != "/api/auth/logout":
             self.send_error(404)
+            return
+        if not valid_sso_secret(self.headers):
+            self.send_error(403, "SSO bridge secret is missing or invalid")
             return
         expired = "Path=/; Max-Age=0; SameSite=Lax; Secure; HttpOnly"
         self.send_response(200)

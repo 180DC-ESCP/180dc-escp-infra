@@ -5,6 +5,10 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    env_file:
+      - .env
+    environment:
+      SSO_SHARED_SECRET: ${SSO_SHARED_SECRET:?sso shared secret required}
     ports:
       - "80:80"
       - "443:443"

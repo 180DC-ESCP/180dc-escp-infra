@@ -55,6 +55,7 @@ services:
       - EXTERNAL_HOOK_FILES=/home/node/.n8n/authentik-sso-hook.js
       - AUTHENTIK_ALLOWED_EMAIL_DOMAIN=${AUTHENTIK_ALLOWED_EMAIL_DOMAIN}
       - PLATFORM_ADMIN_EMAIL=${PLATFORM_ADMIN_EMAIL}
+      - SSO_SHARED_SECRET=${SSO_SHARED_SECRET:?sso shared secret required}
     env_file:
       - .env
     volumes:

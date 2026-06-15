@@ -16,12 +16,16 @@ n8n.180dc-escp.org {
 	@signin path /signin /login
 	redir @signin /auth/authentik/login 302
 
-	reverse_proxy n8n:5678
+	reverse_proxy n8n:5678 {
+		header_up X-Authentik-SSO-Secret {$SSO_SHARED_SECRET}
+	}
 }
 
 hooks.180dc-escp.org {
 	import forward_auth
-	reverse_proxy n8n:5678
+	reverse_proxy n8n:5678 {
+		header_up X-Authentik-SSO-Secret {$SSO_SHARED_SECRET}
+	}
 }
 
 vexa.180dc-escp.org {
@@ -29,7 +33,9 @@ vexa.180dc-escp.org {
 
 	@sso path /login /auth/sso /api/auth/logout
 	handle @sso {
-		reverse_proxy vexa-sso:8080
+		reverse_proxy vexa-sso:8080 {
+			header_up X-Authentik-SSO-Secret {$SSO_SHARED_SECRET}
+		}
 	}
 
 	handle {
@@ -55,5 +61,7 @@ odoo.180dc-escp.org {
 	@signin path /signin /login /web/login
 	redir @signin /auth/authentik/login 302
 
-	reverse_proxy odoo:8069
+	reverse_proxy odoo:8069 {
+		header_up X-Authentik-SSO-Secret {$SSO_SHARED_SECRET}
+	}
 }

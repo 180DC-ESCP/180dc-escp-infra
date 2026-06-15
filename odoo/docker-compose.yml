@@ -36,6 +36,7 @@ services:
       HOST: db
       USER: ${POSTGRES_USER:-odoo}
       PASSWORD: ${POSTGRES_PASSWORD:?database password required}
+      SSO_SHARED_SECRET: ${SSO_SHARED_SECRET:?sso shared secret required}
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
@@ -66,6 +67,7 @@ services:
       HOST: db
       USER: ${POSTGRES_USER:-odoo}
       PASSWORD: ${POSTGRES_PASSWORD:?database password required}
+      SSO_SHARED_SECRET: ${SSO_SHARED_SECRET:?sso shared secret required}
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo

@@ -53,6 +53,7 @@ jobs:
           ODOO_ENV_B64: ${{ secrets.ODOO_ENV_B64 }}
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          SSO_SHARED_SECRET: ${{ secrets.SSO_SHARED_SECRET }}
         run: |
           set -euo pipefail
 
@@ -71,6 +72,7 @@ jobs:
           require_secret ODOO_ENV_B64
           require_secret GOOGLE_OAUTH_CLIENT_ID
           require_secret GOOGLE_OAUTH_CLIENT_SECRET
+          require_secret SSO_SHARED_SECRET
 
           if [ "$missing" -ne 0 ]; then
             exit 1
@@ -80,6 +82,7 @@ jobs:
           n8n_env="$(mktemp)"
           vexa_env="$(mktemp)"
           odoo_env="$(mktemp)"
+          caddy_env="$(mktemp)"
 
           printf '%s' "$AUTHENTIK_ENV_B64" | base64 -d > "$authentik_env"
           {
@@ -94,6 +97,7 @@ jobs:
           {
             printf '\nAUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
             printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
+            printf 'SSO_SHARED_SECRET=%s\n' "$SSO_SHARED_SECRET"
           } >> "$n8n_env"
 
           printf '%s' "$VEXA_ENV_B64" | base64 -d > "$vexa_env"
@@ -129,12 +133,20 @@ jobs:
             printf 'WHISPER_THREADS=2\n'
             printf '\nAUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
             printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
+            printf 'SSO_SHARED_SECRET=%s\n' "$SSO_SHARED_SECRET"
           } >> "$vexa_env"
 
           printf '%s' "$ODOO_ENV_B64" | base64 -d > "$odoo_env"
+          {
+            printf '\nAUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
+            printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
+            printf 'SSO_SHARED_SECRET=%s\n' "$SSO_SHARED_SECRET"
+          } >> "$odoo_env"
+
+          printf 'SSO_SHARED_SECRET=%s\n' "$SSO_SHARED_SECRET" > "$caddy_env"
 
           ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "install -m 700 -d /opt/180dc/authentik /opt/180dc/apps/n8n /opt/180dc/apps/vexa /opt/180dc/apps/odoo"
+            "install -m 700 -d /opt/180dc/authentik /opt/180dc/apps/n8n /opt/180dc/apps/vexa /opt/180dc/apps/odoo /opt/180dc/caddy"
 
           scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$authentik_env" \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/authentik/.env"
@@ -144,8 +156,10 @@ jobs:
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/apps/vexa/.env"
           scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$odoo_env" \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/apps/odoo/.env"
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$caddy_env" \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/caddy/.env"
 
-          rm -f "$authentik_env" "$n8n_env" "$vexa_env" "$odoo_env"
+          rm -f "$authentik_env" "$n8n_env" "$vexa_env" "$odoo_env" "$caddy_env"
 
       - name: Deploy
         shell: bash

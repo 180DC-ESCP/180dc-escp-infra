@@ -88,6 +88,7 @@ ensure_envs() {
   ensure_env authentik
   ensure_env n8n
   ensure_env odoo
+  ensure_env caddy
 
   env_set_if_placeholder "$ROOT/authentik/.env" PG_PASS "$(random_hex)"
   env_set_if_placeholder "$ROOT/authentik/.env" AUTHENTIK_SECRET_KEY "$(random_hex)"
@@ -99,6 +100,15 @@ ensure_envs() {
 
   env_set_if_placeholder "$ROOT/odoo/.env" POSTGRES_PASSWORD "$(random_hex)"
   env_set_if_placeholder "$ROOT/odoo/.env" ODOO_ADMIN_PASSWORD "$(random_hex)"
+
+  local sso_shared_secret
+  sso_shared_secret="$(env_get "$ROOT/caddy/.env" SSO_SHARED_SECRET)"
+  if [ -z "$sso_shared_secret" ] || [ "$sso_shared_secret" = "replace-me" ]; then
+    sso_shared_secret="$(random_hex)"
+    env_set "$ROOT/caddy/.env" SSO_SHARED_SECRET "$sso_shared_secret"
+  fi
+  env_set_if_placeholder "$ROOT/n8n/.env" SSO_SHARED_SECRET "$sso_shared_secret"
+  env_set_if_placeholder "$ROOT/odoo/.env" SSO_SHARED_SECRET "$sso_shared_secret"
 }
 
 render_local_files() {
