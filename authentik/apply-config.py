@@ -81,8 +81,8 @@ apps = [
     ("Vexa API Admin", "vexa-api-admin", "https://vexa-api.180dc-escp.org"),
     ("Odoo", "odoo", "https://odoo.180dc-escp.org"),
 ]
-obsolete_app_slugs = {"bimi"}
-obsolete_provider_names = {"BIMI"}
+obsolete_app_slugs = {"bimi", "odoo-retired"}
+obsolete_provider_names = {"BIMI", "Odoo retired"}
 
 providers = []
 for name, slug, external_host in apps:
