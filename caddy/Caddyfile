@@ -6,11 +6,11 @@
 	}
 }
 
-login.180dc-escp.org {
+login.{env BASE_DOMAIN} {
 	reverse_proxy authentik-server:9000
 }
 
-n8n.180dc-escp.org {
+n8n.{env BASE_DOMAIN} {
 	import forward_auth
 
 	@signin path /signin /login
@@ -28,7 +28,7 @@ n8n.180dc-escp.org {
 	}
 }
 
-hooks.180dc-escp.org {
+hooks.{env BASE_DOMAIN} {
 	@n8n_ingress path /webhook/* /webhook-test/* /form/* /form-test/*
 	handle @n8n_ingress {
 		reverse_proxy n8n:5678 {
@@ -44,7 +44,7 @@ hooks.180dc-escp.org {
 	respond 404
 }
 
-vexa.180dc-escp.org {
+vexa.{env BASE_DOMAIN} {
 	import forward_auth
 
 	@sso path /login /auth/sso /api/auth/logout
@@ -59,11 +59,11 @@ vexa.180dc-escp.org {
 	}
 }
 
-vexa-api.180dc-escp.org {
+vexa-api.{env BASE_DOMAIN} {
 	reverse_proxy vexa-lite:8056
 }
 
-odoo.180dc-escp.org {
+odoo.{env BASE_DOMAIN} {
 	import forward_auth
 
 	@signin path /signin /login /web/login

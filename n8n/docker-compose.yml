@@ -10,6 +10,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     env_file:
+      - ../config.env
       - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -55,8 +56,8 @@ services:
       - EXTERNAL_HOOK_FILES=/home/node/.n8n/authentik-sso-hook.js
       - AUTHENTIK_ALLOWED_EMAIL_DOMAIN=${AUTHENTIK_ALLOWED_EMAIL_DOMAIN}
       - PLATFORM_ADMIN_EMAIL=${PLATFORM_ADMIN_EMAIL}
-      - SSO_SHARED_SECRET=${SSO_SHARED_SECRET:?sso shared secret required}
     env_file:
+      - ../config.env
       - .env
     volumes:
       - n8n_data:/home/node/.n8n

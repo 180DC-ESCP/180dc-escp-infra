@@ -165,38 +165,42 @@ sync_dir "$ROOT/vexa" "$LIVE_ROOT/apps/vexa"
 sync_dir "$ROOT/odoo" "$LIVE_ROOT/apps/odoo"
 sync_dir "$ROOT/caddy" "$LIVE_ROOT/caddy"
 sync_backups_config "$ROOT/backups" "$LIVE_ROOT/backups"
+
+if [ -f "$ROOT/config.env" ]; then
+  install -m 600 "$ROOT/config.env" "$LIVE_ROOT/config.env"
+fi
 configure_odoo_secrets
 
 install -d "$LIVE_ROOT/authentik/data" "$LIVE_ROOT/authentik/certs" "$LIVE_ROOT/authentik/custom-templates"
 
-docker compose -f "$LIVE_ROOT/authentik/docker-compose.yml" --env-file "$LIVE_ROOT/authentik/.env" pull
-docker compose -f "$LIVE_ROOT/authentik/docker-compose.yml" --env-file "$LIVE_ROOT/authentik/.env" up -d --remove-orphans
+docker compose -f "$LIVE_ROOT/authentik/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/authentik/.env" pull
+docker compose -f "$LIVE_ROOT/authentik/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/authentik/.env" up -d --remove-orphans
 wait_for_authentik
 
-docker compose -f "$LIVE_ROOT/authentik/docker-compose.yml" --env-file "$LIVE_ROOT/authentik/.env" exec -T server \
+docker compose -f "$LIVE_ROOT/authentik/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/authentik/.env" exec -T server \
   ak shell < "$LIVE_ROOT/authentik/apply-config.py"
 
-docker compose -f "$LIVE_ROOT/apps/n8n/docker-compose.yml" --env-file "$LIVE_ROOT/apps/n8n/.env" pull
-docker compose -f "$LIVE_ROOT/apps/n8n/docker-compose.yml" --env-file "$LIVE_ROOT/apps/n8n/.env" up -d --remove-orphans
+docker compose -f "$LIVE_ROOT/apps/n8n/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/n8n/.env" pull
+docker compose -f "$LIVE_ROOT/apps/n8n/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/n8n/.env" up -d --remove-orphans
 
-docker compose -f "$LIVE_ROOT/apps/vexa/docker-compose.yml" --env-file "$LIVE_ROOT/apps/vexa/.env" pull
-docker compose -f "$LIVE_ROOT/apps/vexa/docker-compose.yml" --env-file "$LIVE_ROOT/apps/vexa/.env" up -d --remove-orphans
+docker compose -f "$LIVE_ROOT/apps/vexa/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/vexa/.env" pull
+docker compose -f "$LIVE_ROOT/apps/vexa/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/vexa/.env" up -d --remove-orphans
 wait_for_vexa
 
-docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" pull
-docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d db
+docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/odoo/.env" pull
+docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d db
 wait_for_odoo
 if odoo_database_initialized; then
   echo "Odoo database already initialized."
 else
   echo "Initializing Odoo database."
-  docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" --profile init run --rm init
+  docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/odoo/.env" --profile init run --rm init
 fi
-docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d --remove-orphans odoo
+docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d --remove-orphans odoo
 wait_for_container_running odoo
 
-docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/caddy/.env" pull
-docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/caddy/.env" up -d --remove-orphans
+docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/caddy/.env" pull
+docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/caddy/.env" up -d --remove-orphans
 
 docker image prune -a -f >/dev/null
 docker builder prune -f >/dev/null

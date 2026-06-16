@@ -3,33 +3,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCAL_DIR="$ROOT/.local"
-HOSTS=(
-  login.180dc-escp.org
-  n8n.180dc-escp.org
-  hooks.180dc-escp.org
-  odoo.180dc-escp.org
-)
-
-usage() {
-  cat <<'EOF'
-Usage: scripts/local.sh <command>
-
-Commands:
-  init      Create local .env files and generated local overrides
-  up        Start the local stack and apply Authentik config
-  verify    Check local containers and public routes
-  status    Show local container status
-  logs      Follow logs for all local services
-  down      Stop local services while keeping volumes
-  reset     Stop local services and delete local Docker volumes
-
-Before "up", add these hostnames to /etc/hosts pointing at 127.0.0.1:
-  login.180dc-escp.org n8n.180dc-escp.org hooks.180dc-escp.org odoo.180dc-escp.org
-
-Full SSO requires real GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET
-in authentik/.env. Keep .env files local; they are gitignored.
-EOF
-}
 
 random_hex() {
   openssl rand -hex 32
@@ -84,11 +57,26 @@ ensure_env() {
   fi
 }
 
+ensure_config_env() {
+  local file="$ROOT/config.env"
+  local example="$ROOT/config.env.example"
+  if [ ! -f "$file" ]; then
+    cp "$example" "$file"
+  fi
+}
+
 ensure_envs() {
+  ensure_config_env
   ensure_env authentik
   ensure_env n8n
   ensure_env odoo
   ensure_env caddy
+  ensure_env vexa
+
+  local config_file="$ROOT/config.env"
+  env_set_if_placeholder "$config_file" BASE_DOMAIN "180dc-escp.org"
+  env_set_if_placeholder "$config_file" AUTHENTIK_ALLOWED_EMAIL_DOMAIN "180dc.org"
+  env_set_if_placeholder "$config_file" PLATFORM_ADMIN_EMAIL "escp@180dc.org"
 
   env_set_if_placeholder "$ROOT/authentik/.env" PG_PASS "$(random_hex)"
   env_set_if_placeholder "$ROOT/authentik/.env" AUTHENTIK_SECRET_KEY "$(random_hex)"
@@ -102,43 +90,34 @@ ensure_envs() {
   env_set_if_placeholder "$ROOT/odoo/.env" ODOO_ADMIN_PASSWORD "$(random_hex)"
 
   local sso_shared_secret
-  sso_shared_secret="$(env_get "$ROOT/caddy/.env" SSO_SHARED_SECRET)"
+  sso_shared_secret="$(env_get "$config_file" SSO_SHARED_SECRET)"
   if [ -z "$sso_shared_secret" ] || [ "$sso_shared_secret" = "replace-me" ]; then
     sso_shared_secret="$(random_hex)"
-    env_set "$ROOT/caddy/.env" SSO_SHARED_SECRET "$sso_shared_secret"
+    env_set "$config_file" SSO_SHARED_SECRET "$sso_shared_secret"
   fi
-  env_set_if_placeholder "$ROOT/n8n/.env" SSO_SHARED_SECRET "$sso_shared_secret"
-  env_set_if_placeholder "$ROOT/odoo/.env" SSO_SHARED_SECRET "$sso_shared_secret"
+
+  local base_domain
+  base_domain="$(env_get "$config_file" BASE_DOMAIN)"
+  local allowed_domain
+  allowed_domain="$(env_get "$config_file" AUTHENTIK_ALLOWED_EMAIL_DOMAIN)"
+  local platform_admin
+  platform_admin="$(env_get "$config_file" PLATFORM_ADMIN_EMAIL)"
+
+  env_set "$ROOT/authentik/.env" AUTHENTIK_BASE_URL "https://login.${base_domain}"
 }
 
 render_local_files() {
+  local config_file="$ROOT/config.env"
+  local base_domain
+  base_domain="$(env_get "$config_file" BASE_DOMAIN)"
   local odoo_admin_password
   mkdir -p "$LOCAL_DIR/odoo-config"
-
-  {
-    printf '{\n\tlocal_certs\n}\n\n'
-    awk '
-      /^(vexa|vexa-api)\.180dc-escp\.org[[:space:]]*\{/ {
-        skip = 1
-        depth = gsub(/\{/, "{") - gsub(/\}/, "}")
-        next
-      }
-      skip {
-        depth += gsub(/\{/, "{") - gsub(/\}/, "}")
-        if (depth <= 0) {
-          skip = 0
-        }
-        next
-      }
-      { print }
-    ' "$ROOT/caddy/Caddyfile"
-  } > "$LOCAL_DIR/Caddyfile"
 
   cat > "$LOCAL_DIR/caddy.compose.yml" <<EOF
 services:
   caddy:
     volumes:
-      - $LOCAL_DIR/Caddyfile:/etc/caddy/Caddyfile:ro
+      - $ROOT/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
 EOF
 
   odoo_admin_password="$(env_get "$ROOT/odoo/.env" ODOO_ADMIN_PASSWORD)"
@@ -159,10 +138,19 @@ services:
 EOF
 }
 
+get_hosts() {
+  local config_file="$ROOT/config.env"
+  local base_domain
+  base_domain="$(env_get "$config_file" BASE_DOMAIN)"
+  echo "login.${base_domain} n8n.${base_domain} hooks.${base_domain} vexa.${base_domain} vexa-api.${base_domain} odoo.${base_domain}"
+}
+
 check_hosts() {
+  local hosts
+  hosts="$(get_hosts)"
   local missing=()
   local host
-  for host in "${HOSTS[@]}"; do
+  for host in $hosts; do
     if ! awk -v host="$host" '$1 == "127.0.0.1" { for (i = 2; i <= NF; i++) if ($i == host) found = 1 } END { exit found ? 0 : 1 }' /etc/hosts; then
       missing+=("$host")
     fi
@@ -173,7 +161,7 @@ check_hosts() {
     echo >&2
     echo "Add this line with sudo:" >&2
     printf '127.0.0.1'
-    printf ' %s' "${HOSTS[@]}"
+    printf ' %s' $hosts
     printf '\n'
     return 1
   fi
@@ -185,26 +173,33 @@ require_google_oauth() {
   client_id="$(env_get "$ROOT/authentik/.env" GOOGLE_OAUTH_CLIENT_ID)"
   client_secret="$(env_get "$ROOT/authentik/.env" GOOGLE_OAUTH_CLIENT_SECRET)"
   if [ -z "$client_id" ] || [ "$client_id" = "replace-me" ] || [ -z "$client_secret" ] || [ "$client_secret" = "replace-me" ]; then
+    local config_file="$ROOT/config.env"
+    local base_domain
+    base_domain="$(env_get "$config_file" BASE_DOMAIN)"
     echo "authentik/.env needs real GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET for full local SSO." >&2
-    echo "Use redirect URI: https://login.180dc-escp.org/source/oauth/callback/google/" >&2
+    echo "Use redirect URI: https://login.${base_domain}/source/oauth/callback/google/" >&2
     return 1
   fi
 }
 
 dc_authentik() {
-  docker compose --project-directory "$ROOT/authentik" -f "$ROOT/authentik/docker-compose.yml" --env-file "$ROOT/authentik/.env" "$@"
+  docker compose --project-directory "$ROOT/authentik" -f "$ROOT/authentik/docker-compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/authentik/.env" "$@"
 }
 
 dc_n8n() {
-  docker compose --project-directory "$ROOT/n8n" -f "$ROOT/n8n/docker-compose.yml" --env-file "$ROOT/n8n/.env" "$@"
+  docker compose --project-directory "$ROOT/n8n" -f "$ROOT/n8n/docker-compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/n8n/.env" "$@"
 }
 
 dc_odoo() {
-  docker compose --project-directory "$ROOT/odoo" -f "$ROOT/odoo/docker-compose.yml" -f "$LOCAL_DIR/odoo.compose.yml" --env-file "$ROOT/odoo/.env" "$@"
+  docker compose --project-directory "$ROOT/odoo" -f "$ROOT/odoo/docker-compose.yml" -f "$LOCAL_DIR/odoo.compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/odoo/.env" "$@"
 }
 
 dc_caddy() {
-  docker compose --project-directory "$ROOT/caddy" -f "$ROOT/caddy/docker-compose.yml" -f "$LOCAL_DIR/caddy.compose.yml" "$@"
+  docker compose --project-directory "$ROOT/caddy" -f "$ROOT/caddy/docker-compose.yml" -f "$LOCAL_DIR/caddy.compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/caddy/.env" "$@"
+}
+
+dc_vexa() {
+  docker compose --project-directory "$ROOT/vexa" -f "$ROOT/vexa/docker-compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/vexa/.env" "$@"
 }
 
 wait_for_container_running() {
@@ -255,6 +250,32 @@ odoo_database_initialized() {
     | grep -q ir_module_module
 }
 
+usage() {
+  local config_file="$ROOT/config.env"
+  local base_domain="180dc-escp.org"
+  if [ -f "$config_file" ]; then
+    base_domain="$(env_get "$config_file" BASE_DOMAIN)"
+  fi
+  cat <<EOF
+Usage: scripts/local.sh <command>
+
+Commands:
+  init      Create local .env files and generated local overrides
+  up        Start the local stack and apply Authentik config
+  verify    Check local containers and public routes
+  status    Show local container status
+  logs      Follow logs for all local services
+  down      Stop local services while keeping volumes
+  reset     Stop local services and delete local Docker volumes
+
+Before "up", add these hostnames to /etc/hosts pointing at 127.0.0.1:
+  login.${base_domain} n8n.${base_domain} hooks.${base_domain} vexa.${base_domain} vexa-api.${base_domain} odoo.${base_domain}
+
+Full SSO requires real GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET
+in authentik/.env. Keep .env files local; they are gitignored.
+EOF
+}
+
 cmd_init() {
   ensure_envs
   render_local_files
@@ -275,6 +296,9 @@ cmd_up() {
 
   dc_n8n up -d
 
+  dc_vexa up -d
+  wait_for_container_running vexa-lite
+
   dc_odoo up -d db
   wait_for_odoo_db
   if odoo_database_initialized; then
@@ -293,12 +317,18 @@ cmd_up() {
 }
 
 cmd_verify() {
+  local config_file="$ROOT/config.env"
+  local base_domain
+  base_domain="$(env_get "$config_file" BASE_DOMAIN)"
+
   docker ps --format '{{.Names}} {{.Status}}' | sort
   for url in \
-    https://login.180dc-escp.org/ \
-    https://n8n.180dc-escp.org/ \
-    https://hooks.180dc-escp.org/ \
-    https://odoo.180dc-escp.org/
+    "https://login.${base_domain}/" \
+    "https://n8n.${base_domain}/" \
+    "https://hooks.${base_domain}/webhook/__verify_public_hooks__" \
+    "https://vexa.${base_domain}/" \
+    "https://vexa-api.${base_domain}/admin/users" \
+    "https://odoo.${base_domain}/"
   do
     code=""
     for attempt in 1 2 3 4 5; do
@@ -313,7 +343,7 @@ cmd_verify() {
       return 1
     fi
     case "$url:$code" in
-      *login.180dc-escp.org*:200|*login.180dc-escp.org*:302|*:302)
+      *login*:200|*login*:302|*:302|*hooks*:404|*vexa*:302|*vexa-api*:403)
         echo "ok $code $url"
         ;;
       *)
@@ -332,6 +362,7 @@ cmd_logs() {
   dc_caddy logs -f &
   dc_odoo logs -f &
   dc_n8n logs -f &
+  dc_vexa logs -f &
   dc_authentik logs -f &
   wait
 }
@@ -342,6 +373,7 @@ cmd_down() {
   dc_caddy down --remove-orphans || true
   dc_odoo down --remove-orphans || true
   dc_n8n down --remove-orphans || true
+  dc_vexa down --remove-orphans || true
   dc_authentik down --remove-orphans || true
 }
 
@@ -351,6 +383,7 @@ cmd_reset() {
   dc_caddy down -v --remove-orphans || true
   dc_odoo down -v --remove-orphans || true
   dc_n8n down -v --remove-orphans || true
+  dc_vexa down -v --remove-orphans || true
   dc_authentik down -v --remove-orphans || true
   rm -rf "$LOCAL_DIR"
 }
