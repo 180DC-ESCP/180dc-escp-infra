@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18.4-alpine
     container_name: odoo-db
     restart: unless-stopped
     security_opt:
@@ -12,7 +12,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-odoo}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?database password required}
     volumes:
-      - odoo-db-data:/var/lib/postgresql/data
+      - odoo-db-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -22,7 +22,7 @@ services:
       - odoo-internal
 
   odoo:
-    image: odoo:19.0
+    image: odoo:19.0-20260609
     container_name: odoo
     restart: unless-stopped
     security_opt:
@@ -56,7 +56,7 @@ services:
       - odoo-internal
 
   init:
-    image: odoo:19.0
+    image: odoo:19.0-20260609
     profiles:
       - init
     env_file:

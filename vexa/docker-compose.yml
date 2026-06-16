@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18.4-alpine
     container_name: vexa-db
     restart: unless-stopped
     security_opt:
@@ -19,12 +19,12 @@ services:
       timeout: 5s
       retries: 10
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     networks:
       - vexa-internal
 
   whisper:
-    image: hwdsl2/whisper-server:${WHISPER_IMAGE_TAG:-latest}
+    image: hwdsl2/whisper-server:${WHISPER_IMAGE_TAG:-latest@sha256:3f109fa1cfd99d701b9e60a8ef52457630b0711ef2c1ad44d57cd95e25b91b39}
     container_name: vexa-whisper
     restart: unless-stopped
     security_opt:
@@ -48,7 +48,7 @@ services:
       - vexa-internal
 
   vexa-lite:
-    image: vexaai/vexa-lite:${IMAGE_TAG:-latest}
+    image: vexaai/vexa-lite:${IMAGE_TAG:-0.10.6.3-260610-2224@sha256:dbd137c076ee05e3b343742cdc0c52b685e7675f05a726554cc999c7ca8b1a39}
     container_name: vexa-lite
     restart: unless-stopped
     security_opt:
@@ -94,7 +94,7 @@ services:
       - vexa-internal
 
   vexa-sso:
-    image: python:3.12-alpine
+    image: python:3.14.6-alpine
     container_name: vexa-sso
     restart: unless-stopped
     security_opt:

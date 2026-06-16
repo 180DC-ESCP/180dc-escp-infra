@@ -6,11 +6,11 @@
 	}
 }
 
-login.{env BASE_DOMAIN} {
+login.{$BASE_DOMAIN} {
 	reverse_proxy authentik-server:9000
 }
 
-n8n.{env BASE_DOMAIN} {
+n8n.{$BASE_DOMAIN} {
 	import forward_auth
 
 	@signin path /signin /login
@@ -28,7 +28,7 @@ n8n.{env BASE_DOMAIN} {
 	}
 }
 
-hooks.{env BASE_DOMAIN} {
+hooks.{$BASE_DOMAIN} {
 	@n8n_ingress path /webhook/* /webhook-test/* /form/* /form-test/*
 	handle @n8n_ingress {
 		reverse_proxy n8n:5678 {
@@ -44,7 +44,7 @@ hooks.{env BASE_DOMAIN} {
 	respond 404
 }
 
-vexa.{env BASE_DOMAIN} {
+vexa.{$BASE_DOMAIN} {
 	import forward_auth
 
 	@sso path /login /auth/sso /api/auth/logout
@@ -59,11 +59,11 @@ vexa.{env BASE_DOMAIN} {
 	}
 }
 
-vexa-api.{env BASE_DOMAIN} {
+vexa-api.{$BASE_DOMAIN} {
 	reverse_proxy vexa-lite:8056
 }
 
-odoo.{env BASE_DOMAIN} {
+odoo.{$BASE_DOMAIN} {
 	import forward_auth
 
 	@signin path /signin /login /web/login

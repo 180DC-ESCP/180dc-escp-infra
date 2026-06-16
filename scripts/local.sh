@@ -105,7 +105,7 @@ ensure_envs() {
   env_set "$ROOT/n8n/.env" N8N_PROTOCOL "http"
 
   env_set_if_placeholder "$ROOT/odoo/.env" POSTGRES_PASSWORD "$(random_hex)"
-  env_set_if_placeholder "$ROOT/odoo/.env" ODOO_ADMIN_PASSWORD "$(random_hex)"
+  env_unset "$ROOT/odoo/.env" ODOO_ADMIN_PASSWORD
 
   local sso_shared_secret
   sso_shared_secret="$(env_get "$config_file" SSO_SHARED_SECRET)"
@@ -126,11 +126,6 @@ ensure_envs() {
 }
 
 render_local_files() {
-  local config_file="$ROOT/config.env"
-  local base_domain
-  base_domain="$(env_get "$config_file" BASE_DOMAIN)"
-  local odoo_admin_password
-  mkdir -p "$LOCAL_DIR/odoo-config"
   rm -f "$LOCAL_DIR/vexa.compose.yml"
 
   # Local port-based overrides - expose services directly, skip Caddy
@@ -148,22 +143,13 @@ services:
       - "127.0.0.1:5678:5678"
 EOF
 
-  odoo_admin_password="$(env_get "$ROOT/odoo/.env" ODOO_ADMIN_PASSWORD)"
-  awk -v admin_password="$odoo_admin_password" '
-    !/^[[:space:]]*admin_passwd[[:space:]]*=/ { print }
-    END { print "admin_passwd = " admin_password }
-  ' "$ROOT/odoo/config/odoo.conf" > "$LOCAL_DIR/odoo-config/odoo.conf"
-
   cat > "$LOCAL_DIR/odoo.compose.yml" <<EOF
 services:
   odoo:
-    volumes:
-      - $LOCAL_DIR/odoo-config/odoo.conf:/etc/odoo/odoo.conf:ro
     ports:
       - "127.0.0.1:8069:8069"
   init:
     volumes:
-      - $LOCAL_DIR/odoo-config/odoo.conf:/etc/odoo/odoo.conf:ro
       - $ROOT:/mnt/import:ro
 EOF
 

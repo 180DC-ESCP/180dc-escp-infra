@@ -47,33 +47,6 @@ sync_backups_config() {
     "$src"/ "$dst"/
 }
 
-env_value() {
-  local key="$1"
-  local file="$2"
-  awk -F= -v key="$key" '$1 == key { value = substr($0, length(key) + 2) } END { print value }' "$file"
-}
-
-configure_odoo_secrets() {
-  local env_file="$LIVE_ROOT/apps/odoo/.env"
-  local config_file="$LIVE_ROOT/apps/odoo/config/odoo.conf"
-  local admin_password
-  local tmp
-
-  admin_password="$(env_value ODOO_ADMIN_PASSWORD "$env_file")"
-  if [ -z "$admin_password" ]; then
-    echo "ODOO_ADMIN_PASSWORD is missing from $env_file" >&2
-    return 1
-  fi
-
-  tmp="$(mktemp)"
-  awk -v admin_password="$admin_password" '
-    !/^[[:space:]]*admin_passwd[[:space:]]*=/ { print }
-    END { print "admin_passwd = " admin_password }
-  ' "$config_file" > "$tmp"
-  install -m 644 "$tmp" "$config_file"
-  rm -f "$tmp"
-}
-
 wait_for_authentik() {
   local tries=60
   while [ "$tries" -gt 0 ]; do
@@ -168,8 +141,8 @@ sync_backups_config "$ROOT/backups" "$LIVE_ROOT/backups"
 
 if [ -f "$ROOT/config.env" ]; then
   install -m 600 "$ROOT/config.env" "$LIVE_ROOT/config.env"
+  install -m 600 "$ROOT/config.env" "$LIVE_ROOT/apps/config.env"
 fi
-configure_odoo_secrets
 
 install -d "$LIVE_ROOT/authentik/data" "$LIVE_ROOT/authentik/certs" "$LIVE_ROOT/authentik/custom-templates"
 
