@@ -17,6 +17,7 @@ ALLOWED_DOMAIN = os.environ.get("AUTHENTIK_ALLOWED_EMAIL_DOMAIN", "180dc.org").l
 PLATFORM_ADMIN_EMAIL = os.environ.get("PLATFORM_ADMIN_EMAIL", "escp@180dc.org").strip().lower()
 GOOGLE_CLIENT_ID = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
 GOOGLE_CLIENT_SECRET = os.environ["GOOGLE_OAUTH_CLIENT_SECRET"]
+INCLUDE_VEXA = os.environ.get("AUTHENTIK_INCLUDE_VEXA", "true").lower() not in {"0", "false", "no"}
 
 
 _required_flows = [
@@ -111,11 +112,15 @@ invalidation_flow = flow("default-provider-invalidation-flow")
 
 apps = [
     ("n8n", "n8n", "https://n8n.180dc-escp.org"),
-    ("Vexa", "vexa", "https://vexa.180dc-escp.org"),
     ("Odoo", "odoo", "https://odoo.180dc-escp.org"),
 ]
 obsolete_app_slugs = {"bimi", "n8n-hooks", "odoo-retired", "vexa-api-admin"}
 obsolete_provider_names = {"BIMI", "n8n hooks", "Odoo retired", "Vexa API Admin"}
+if INCLUDE_VEXA:
+    apps.insert(1, ("Vexa", "vexa", "https://vexa.180dc-escp.org"))
+else:
+    obsolete_app_slugs.add("vexa")
+    obsolete_provider_names.add("Vexa")
 
 providers = []
 for name, slug, external_host in apps:

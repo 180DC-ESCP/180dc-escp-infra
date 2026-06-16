@@ -48,6 +48,18 @@ env_set_if_placeholder() {
   fi
 }
 
+env_unset() {
+  local file="$1"
+  local key="$2"
+  local tmp
+  if [ ! -f "$file" ]; then
+    return 0
+  fi
+  tmp="$(mktemp)"
+  awk -v key="$key" '$0 !~ "^" key "=" { print }' "$file" > "$tmp"
+  mv "$tmp" "$file"
+}
+
 ensure_env() {
   local app="$1"
   local file="$ROOT/$app/.env"
@@ -70,9 +82,10 @@ ensure_envs() {
   ensure_env authentik
   ensure_env n8n
   ensure_env odoo
-  ensure_env vexa
 
   local config_file="$ROOT/config.env"
+  env_unset "$ROOT/n8n/.env" SSO_SHARED_SECRET
+  env_unset "$ROOT/odoo/.env" SSO_SHARED_SECRET
   env_set_if_placeholder "$config_file" BASE_DOMAIN "180dc-escp.org"
   env_set_if_placeholder "$config_file" AUTHENTIK_ALLOWED_EMAIL_DOMAIN "180dc.org"
   env_set_if_placeholder "$config_file" PLATFORM_ADMIN_EMAIL "escp@180dc.org"
@@ -109,6 +122,7 @@ ensure_envs() {
   platform_admin="$(env_get "$config_file" PLATFORM_ADMIN_EMAIL)"
 
   env_set "$ROOT/authentik/.env" AUTHENTIK_BASE_URL "http://localhost:9000"
+  env_set "$ROOT/authentik/.env" AUTHENTIK_INCLUDE_VEXA "false"
 }
 
 render_local_files() {
@@ -117,6 +131,7 @@ render_local_files() {
   base_domain="$(env_get "$config_file" BASE_DOMAIN)"
   local odoo_admin_password
   mkdir -p "$LOCAL_DIR/odoo-config"
+  rm -f "$LOCAL_DIR/vexa.compose.yml"
 
   # Local port-based overrides - expose services directly, skip Caddy
   cat > "$LOCAL_DIR/authentik.compose.yml" <<EOF
@@ -152,18 +167,6 @@ services:
       - $ROOT:/mnt/import:ro
 EOF
 
-  cat > "$LOCAL_DIR/vexa.compose.yml" <<EOF
-services:
-  vexa-lite:
-    ports:
-      - "127.0.0.1:3000:3000"
-      - "127.0.0.1:8056:8056"
-    environment:
-      NEXT_PUBLIC_APP_URL: http://localhost:3000
-  vexa-sso:
-    ports:
-      - "127.0.0.1:8080:8080"
-EOF
 }
 
 
@@ -178,10 +181,6 @@ dc_n8n() {
 
 dc_odoo() {
   docker compose --project-directory "$ROOT/odoo" -f "$ROOT/odoo/docker-compose.yml" -f "$LOCAL_DIR/odoo.compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/odoo/.env" "$@"
-}
-
-dc_vexa() {
-  docker compose --project-directory "$ROOT/vexa" -f "$ROOT/vexa/docker-compose.yml" -f "$LOCAL_DIR/vexa.compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/vexa/.env" "$@"
 }
 
 wait_for_container_running() {
@@ -249,8 +248,6 @@ Services are accessible on:
   authentik: http://localhost:9000
   n8n:       http://localhost:5678
   odoo:      http://localhost:8069
-  vexa:      http://localhost:3000
-  vexa-api:  http://localhost:8056
 
 Google SSO is not available locally (requires real OAuth credentials
 and matching redirect URIs). Use for development only.
@@ -271,8 +268,6 @@ cmd_up() {
   echo "  authentik: http://localhost:9000"
   echo "  n8n:       http://localhost:5678"
   echo "  odoo:      http://localhost:8069"
-  echo "  vexa:      http://localhost:3000"
-  echo "  vexa-api:  http://localhost:8056"
   echo ""
 
   docker network create proxy >/dev/null 2>&1 || true
@@ -282,9 +277,6 @@ cmd_up() {
   dc_authentik exec -T server ak shell < "$ROOT/authentik/apply-config.py"
 
   dc_n8n up -d
-
-  dc_vexa up -d
-  wait_for_container_running vexa-lite
 
   dc_odoo up -d db
   wait_for_odoo_db
@@ -305,9 +297,7 @@ cmd_verify() {
   for url in \
     "http://localhost:9000/" \
     "http://localhost:5678/" \
-    "http://localhost:8069/" \
-    "http://localhost:3000/" \
-    "http://localhost:8056/"
+    "http://localhost:8069/"
   do
     code=""
     for attempt in 1 2 3 4 5; do
@@ -322,7 +312,7 @@ cmd_verify() {
       return 1
     fi
     case "$url:$code" in
-      *:200|*:302|*:403|*:404)
+      *:200|*:302|*:303|*:403|*:404)
         echo "ok $code $url"
         ;;
       *)
@@ -340,7 +330,6 @@ cmd_status() {
 cmd_logs() {
   dc_odoo logs -f &
   dc_n8n logs -f &
-  dc_vexa logs -f &
   dc_authentik logs -f &
   wait
 }
@@ -350,7 +339,6 @@ cmd_down() {
   render_local_files
   dc_odoo down --remove-orphans || true
   dc_n8n down --remove-orphans || true
-  dc_vexa down --remove-orphans || true
   dc_authentik down --remove-orphans || true
 }
 
@@ -359,7 +347,6 @@ cmd_reset() {
   render_local_files
   dc_odoo down -v --remove-orphans || true
   dc_n8n down -v --remove-orphans || true
-  dc_vexa down -v --remove-orphans || true
   dc_authentik down -v --remove-orphans || true
   rm -rf "$LOCAL_DIR"
 }
