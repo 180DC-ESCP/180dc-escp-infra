@@ -97,6 +97,7 @@ jobs:
           {
             printf '\nAUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
             printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
+            printf 'N8N_PROXY_HOPS=1\n'
             printf 'SSO_SHARED_SECRET=%s\n' "$SSO_SHARED_SECRET"
           } >> "$n8n_env"
 

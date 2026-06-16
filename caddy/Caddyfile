@@ -16,6 +16,13 @@ n8n.180dc-escp.org {
 	@signin path /signin /login
 	redir @signin /auth/authentik/login 302
 
+	@needs_n8n_sso {
+		method GET
+		not header Cookie *n8n-auth=*
+		not path /auth/authentik/login /rest/* /webhook/* /webhook-test/* /form/* /form-test/* /assets/* /favicon.ico /robots.txt
+	}
+	redir @needs_n8n_sso /auth/authentik/login 302
+
 	reverse_proxy n8n:5678 {
 		header_up X-Authentik-SSO-Secret {$SSO_SHARED_SECRET}
 	}
