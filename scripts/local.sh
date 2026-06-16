@@ -112,11 +112,19 @@ render_local_files() {
   local odoo_admin_password
   mkdir -p "$LOCAL_DIR/odoo-config"
 
-  cat > "$LOCAL_DIR/caddy.compose.yml" <<EOF
+  # Local port-based overrides - expose services directly, skip Caddy
+  cat > "$LOCAL_DIR/authentik.compose.yml" <<EOF
 services:
-  caddy:
-    volumes:
-      - $ROOT/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+  server:
+    ports:
+      - "127.0.0.1:9000:9000"
+EOF
+
+  cat > "$LOCAL_DIR/n8n.compose.yml" <<EOF
+services:
+  n8n:
+    ports:
+      - "127.0.0.1:5678:5678"
 EOF
 
   odoo_admin_password="$(env_get "$ROOT/odoo/.env" ODOO_ADMIN_PASSWORD)"
@@ -130,75 +138,42 @@ services:
   odoo:
     volumes:
       - $LOCAL_DIR/odoo-config/odoo.conf:/etc/odoo/odoo.conf:ro
+    ports:
+      - "127.0.0.1:8069:8069"
   init:
     volumes:
       - $LOCAL_DIR/odoo-config/odoo.conf:/etc/odoo/odoo.conf:ro
       - $ROOT:/mnt/import:ro
 EOF
+
+  cat > "$LOCAL_DIR/vexa.compose.yml" <<EOF
+services:
+  vexa-lite:
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:8056:8056"
+  vexa-sso:
+    ports:
+      - "127.0.0.1:8080:8080"
+EOF
 }
 
-get_hosts() {
-  local config_file="$ROOT/config.env"
-  local base_domain
-  base_domain="$(env_get "$config_file" BASE_DOMAIN)"
-  echo "login.${base_domain} n8n.${base_domain} hooks.${base_domain} vexa.${base_domain} vexa-api.${base_domain} odoo.${base_domain}"
-}
 
-check_hosts() {
-  local hosts
-  hosts="$(get_hosts)"
-  local missing=()
-  local host
-  for host in $hosts; do
-    if ! awk -v host="$host" '$1 == "127.0.0.1" { for (i = 2; i <= NF; i++) if ($i == host) found = 1 } END { exit found ? 0 : 1 }' /etc/hosts; then
-      missing+=("$host")
-    fi
-  done
-  if [ "${#missing[@]}" -gt 0 ]; then
-    echo "Missing /etc/hosts entries for local routing:" >&2
-    printf '  %s\n' "${missing[@]}" >&2
-    echo >&2
-    echo "Add this line with sudo:" >&2
-    printf '127.0.0.1'
-    printf ' %s' $hosts
-    printf '\n'
-    return 1
-  fi
-}
-
-require_google_oauth() {
-  local client_id
-  local client_secret
-  client_id="$(env_get "$ROOT/authentik/.env" GOOGLE_OAUTH_CLIENT_ID)"
-  client_secret="$(env_get "$ROOT/authentik/.env" GOOGLE_OAUTH_CLIENT_SECRET)"
-  if [ -z "$client_id" ] || [ "$client_id" = "replace-me" ] || [ -z "$client_secret" ] || [ "$client_secret" = "replace-me" ]; then
-    local config_file="$ROOT/config.env"
-    local base_domain
-    base_domain="$(env_get "$config_file" BASE_DOMAIN)"
-    echo "authentik/.env needs real GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET for full local SSO." >&2
-    echo "Use redirect URI: https://login.${base_domain}/source/oauth/callback/google/" >&2
-    return 1
-  fi
-}
 
 dc_authentik() {
-  docker compose --project-directory "$ROOT/authentik" -f "$ROOT/authentik/docker-compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/authentik/.env" "$@"
+  docker compose --project-directory "$ROOT/authentik" -f "$ROOT/authentik/docker-compose.yml" -f "$LOCAL_DIR/authentik.compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/authentik/.env" "$@"
 }
 
 dc_n8n() {
-  docker compose --project-directory "$ROOT/n8n" -f "$ROOT/n8n/docker-compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/n8n/.env" "$@"
+  docker compose --project-directory "$ROOT/n8n" -f "$ROOT/n8n/docker-compose.yml" -f "$LOCAL_DIR/n8n.compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/n8n/.env" "$@"
 }
 
 dc_odoo() {
   docker compose --project-directory "$ROOT/odoo" -f "$ROOT/odoo/docker-compose.yml" -f "$LOCAL_DIR/odoo.compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/odoo/.env" "$@"
 }
 
-dc_caddy() {
-  docker compose --project-directory "$ROOT/caddy" -f "$ROOT/caddy/docker-compose.yml" -f "$LOCAL_DIR/caddy.compose.yml" --env-file "$ROOT/config.env" "$@"
-}
-
 dc_vexa() {
-  docker compose --project-directory "$ROOT/vexa" -f "$ROOT/vexa/docker-compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/vexa/.env" "$@"
+  docker compose --project-directory "$ROOT/vexa" -f "$ROOT/vexa/docker-compose.yml" -f "$LOCAL_DIR/vexa.compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/vexa/.env" "$@"
 }
 
 wait_for_container_running() {
@@ -250,28 +225,27 @@ odoo_database_initialized() {
 }
 
 usage() {
-  local config_file="$ROOT/config.env"
-  local base_domain="180dc-escp.org"
-  if [ -f "$config_file" ]; then
-    base_domain="$(env_get "$config_file" BASE_DOMAIN)"
-  fi
-  cat <<EOF
+  cat <<'EOF'
 Usage: scripts/local.sh <command>
 
 Commands:
   init      Create local .env files and generated local overrides
-  up        Start the local stack and apply Authentik config
-  verify    Check local containers and public routes
+  up        Start the local stack (port-based, no Caddy)
+  verify    Check local containers and ports
   status    Show local container status
   logs      Follow logs for all local services
   down      Stop local services while keeping volumes
   reset     Stop local services and delete local Docker volumes
 
-Before "up", add these hostnames to /etc/hosts pointing at 127.0.0.1:
-  login.${base_domain} n8n.${base_domain} hooks.${base_domain} vexa.${base_domain} vexa-api.${base_domain} odoo.${base_domain}
+Services are accessible on:
+  authentik: http://localhost:9000
+  n8n:       http://localhost:5678
+  odoo:      http://localhost:8069
+  vexa:      http://localhost:3000
+  vexa-api:  http://localhost:8056
 
-Full SSO requires real GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET
-in authentik/.env. Keep .env files local; they are gitignored.
+Google SSO is not available locally (requires real OAuth credentials
+and matching redirect URIs). Use for development only.
 EOF
 }
 
@@ -284,8 +258,14 @@ cmd_init() {
 cmd_up() {
   ensure_envs
   render_local_files
-  check_hosts
-  require_google_oauth
+
+  echo "Starting local stack (port-based, no Caddy)..."
+  echo "  authentik: http://localhost:9000"
+  echo "  n8n:       http://localhost:5678"
+  echo "  odoo:      http://localhost:8069"
+  echo "  vexa:      http://localhost:3000"
+  echo "  vexa-api:  http://localhost:8056"
+  echo ""
 
   docker network create proxy >/dev/null 2>&1 || true
 
@@ -309,29 +289,21 @@ cmd_up() {
   dc_odoo up -d odoo
   wait_for_container_running odoo
 
-  dc_caddy up -d
-  wait_for_container_running caddy
-  docker exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
   cmd_verify
 }
 
 cmd_verify() {
-  local config_file="$ROOT/config.env"
-  local base_domain
-  base_domain="$(env_get "$config_file" BASE_DOMAIN)"
-
   docker ps --format '{{.Names}} {{.Status}}' | sort
   for url in \
-    "https://login.${base_domain}/" \
-    "https://n8n.${base_domain}/" \
-    "https://hooks.${base_domain}/webhook/__verify_public_hooks__" \
-    "https://vexa.${base_domain}/" \
-    "https://vexa-api.${base_domain}/admin/users" \
-    "https://odoo.${base_domain}/"
+    "http://localhost:9000/" \
+    "http://localhost:5678/" \
+    "http://localhost:8069/" \
+    "http://localhost:3000/" \
+    "http://localhost:8056/"
   do
     code=""
     for attempt in 1 2 3 4 5; do
-      if code="$(curl -k -sS -o /dev/null -w '%{http_code}' "$url")"; then
+      if code="$(curl -sS -o /dev/null -w '%{http_code}' "$url")"; then
         break
       fi
       echo "retrying $url after curl failure ($attempt/5)" >&2
@@ -342,7 +314,7 @@ cmd_verify() {
       return 1
     fi
     case "$url:$code" in
-      *login*:200|*login*:302|*:302|*hooks*:404|*vexa*:302|*vexa-api*:403)
+      *:200|*:302|*:403|*:404)
         echo "ok $code $url"
         ;;
       *)
@@ -358,7 +330,6 @@ cmd_status() {
 }
 
 cmd_logs() {
-  dc_caddy logs -f &
   dc_odoo logs -f &
   dc_n8n logs -f &
   dc_vexa logs -f &
@@ -369,7 +340,6 @@ cmd_logs() {
 cmd_down() {
   ensure_envs
   render_local_files
-  dc_caddy down --remove-orphans || true
   dc_odoo down --remove-orphans || true
   dc_n8n down --remove-orphans || true
   dc_vexa down --remove-orphans || true
@@ -379,7 +349,6 @@ cmd_down() {
 cmd_reset() {
   ensure_envs
   render_local_files
-  dc_caddy down -v --remove-orphans || true
   dc_odoo down -v --remove-orphans || true
   dc_n8n down -v --remove-orphans || true
   dc_vexa down -v --remove-orphans || true

@@ -1,4 +1,5 @@
 import os
+import time
 
 from authentik.core.models import Application, User
 from authentik.flows.models import Flow
@@ -16,6 +17,40 @@ ALLOWED_DOMAIN = os.environ.get("AUTHENTIK_ALLOWED_EMAIL_DOMAIN", "180dc.org").l
 PLATFORM_ADMIN_EMAIL = os.environ.get("PLATFORM_ADMIN_EMAIL", "escp@180dc.org").strip().lower()
 GOOGLE_CLIENT_ID = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
 GOOGLE_CLIENT_SECRET = os.environ["GOOGLE_OAUTH_CLIENT_SECRET"]
+
+
+_required_flows = [
+    "default-source-authentication",
+    "default-source-enrollment",
+    "default-provider-authorization-implicit-consent",
+    "default-provider-invalidation-flow",
+]
+
+_required_stages = [
+    ("IdentificationStage", "default-authentication-identification"),
+    ("UserWriteStage", "default-source-enrollment-write"),
+]
+
+for flow_slug in _required_flows:
+    tries = 0
+    while Flow.objects.filter(slug=flow_slug).count() == 0:
+        tries += 1
+        if tries > 60:
+            print(f"timeout waiting for flow {flow_slug!r}")
+            break
+        print(f"waiting for flow {flow_slug!r}… ({tries}/60)")
+        time.sleep(2)
+
+for model_cls, stage_name in _required_stages:
+    model = globals()[model_cls]
+    tries = 0
+    while model.objects.filter(name=stage_name).count() == 0:
+        tries += 1
+        if tries > 60:
+            print(f"timeout waiting for stage {stage_name!r}")
+            break
+        print(f"waiting for stage {stage_name!r}… ({tries}/60)")
+        time.sleep(2)
 
 
 def flow(slug):
