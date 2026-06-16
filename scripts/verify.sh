@@ -6,7 +6,7 @@ docker ps --format '{{.Names}} {{.Status}}' | sort
 for url in \
   https://login.180dc-escp.org/ \
   https://n8n.180dc-escp.org/ \
-  https://hooks.180dc-escp.org/ \
+  https://hooks.180dc-escp.org/webhook/__verify_public_hooks__ \
   https://vexa.180dc-escp.org/ \
   https://vexa-api.180dc-escp.org/admin/users \
   https://odoo.180dc-escp.org/
@@ -24,7 +24,7 @@ do
     exit 1
   fi
   case "$url:$code" in
-    *login.180dc-escp.org*:302|*n8n.180dc-escp.org*:302|*hooks.180dc-escp.org*:302|*vexa.180dc-escp.org*:302|*vexa-api.180dc-escp.org*:302|*odoo.180dc-escp.org*:302)
+    *login.180dc-escp.org*:302|*n8n.180dc-escp.org*:302|*hooks.180dc-escp.org*:404|*vexa.180dc-escp.org*:302|*vexa-api.180dc-escp.org*:302|*odoo.180dc-escp.org*:302)
       echo "ok $code $url"
       ;;
     *)

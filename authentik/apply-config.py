@@ -76,13 +76,12 @@ invalidation_flow = flow("default-provider-invalidation-flow")
 
 apps = [
     ("n8n", "n8n", "https://n8n.180dc-escp.org"),
-    ("n8n hooks", "n8n-hooks", "https://hooks.180dc-escp.org"),
     ("Vexa", "vexa", "https://vexa.180dc-escp.org"),
     ("Vexa API Admin", "vexa-api-admin", "https://vexa-api.180dc-escp.org"),
     ("Odoo", "odoo", "https://odoo.180dc-escp.org"),
 ]
-obsolete_app_slugs = {"bimi", "odoo-retired"}
-obsolete_provider_names = {"BIMI", "Odoo retired"}
+obsolete_app_slugs = {"bimi", "n8n-hooks", "odoo-retired"}
+obsolete_provider_names = {"BIMI", "n8n hooks", "Odoo retired"}
 
 providers = []
 for name, slug, external_host in apps:

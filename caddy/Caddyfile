@@ -29,10 +29,19 @@ n8n.180dc-escp.org {
 }
 
 hooks.180dc-escp.org {
-	import forward_auth
-	reverse_proxy n8n:5678 {
-		header_up X-Authentik-SSO-Secret {$SSO_SHARED_SECRET}
+	@n8n_ingress path /webhook/* /webhook-test/* /form/* /form-test/*
+	handle @n8n_ingress {
+		reverse_proxy n8n:5678 {
+			header_up -X-Authentik-Username
+			header_up -X-Authentik-Groups
+			header_up -X-Authentik-Email
+			header_up -X-Authentik-Name
+			header_up -X-Authentik-Uid
+			header_up -X-Authentik-SSO-Secret
+		}
 	}
+
+	respond 404
 }
 
 vexa.180dc-escp.org {
