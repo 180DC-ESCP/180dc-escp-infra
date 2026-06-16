@@ -24,7 +24,7 @@ services:
       - vexa-internal
 
   whisper:
-    image: hwdsl2/whisper-server:${WHISPER_IMAGE_TAG:-20241104}
+    image: hwdsl2/whisper-server:${WHISPER_IMAGE_TAG:-latest}
     container_name: vexa-whisper
     restart: unless-stopped
     security_opt:
@@ -48,7 +48,7 @@ services:
       - vexa-internal
 
   vexa-lite:
-    image: vexaai/vexa-lite:${IMAGE_TAG:-0.3.0}
+    image: vexaai/vexa-lite:${IMAGE_TAG:-latest}
     container_name: vexa-lite
     restart: unless-stopped
     security_opt:
