@@ -85,6 +85,12 @@ ensure_envs() {
   env_set_if_placeholder "$ROOT/n8n/.env" POSTGRES_PASSWORD "$(random_hex)"
   env_set_if_placeholder "$ROOT/n8n/.env" N8N_ENCRYPTION_KEY "$(random_hex)"
 
+  # Local port-based dev: override n8n host settings
+  env_set "$ROOT/n8n/.env" N8N_HOST "localhost"
+  env_set "$ROOT/n8n/.env" N8N_EDITOR_BASE_URL "http://localhost:5678"
+  env_set "$ROOT/n8n/.env" WEBHOOK_URL "http://localhost:5678"
+  env_set "$ROOT/n8n/.env" N8N_PROTOCOL "http"
+
   env_set_if_placeholder "$ROOT/odoo/.env" POSTGRES_PASSWORD "$(random_hex)"
   env_set_if_placeholder "$ROOT/odoo/.env" ODOO_ADMIN_PASSWORD "$(random_hex)"
 
@@ -102,7 +108,7 @@ ensure_envs() {
   local platform_admin
   platform_admin="$(env_get "$config_file" PLATFORM_ADMIN_EMAIL)"
 
-  env_set "$ROOT/authentik/.env" AUTHENTIK_BASE_URL "https://login.${base_domain}"
+  env_set "$ROOT/authentik/.env" AUTHENTIK_BASE_URL "http://localhost:9000"
 }
 
 render_local_files() {
@@ -152,6 +158,8 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
       - "127.0.0.1:8056:8056"
+    environment:
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
   vexa-sso:
     ports:
       - "127.0.0.1:8080:8080"
