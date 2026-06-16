@@ -60,15 +60,7 @@ vexa.180dc-escp.org {
 }
 
 vexa-api.180dc-escp.org {
-	@admin_api path /admin/*
-	handle @admin_api {
-		import forward_auth
-		reverse_proxy vexa-lite:8056
-	}
-
-	handle {
-		reverse_proxy vexa-lite:8056
-	}
+	reverse_proxy vexa-lite:8056
 }
 
 odoo.180dc-escp.org {

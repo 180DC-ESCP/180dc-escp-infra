@@ -132,7 +132,7 @@ Vexa Lite dashboard is protected by authentik at `https://vexa.180dc-escp.org` a
 
 Transcription is local. Vexa Lite points at the private `whisper` service in `vexa/docker-compose.yml`, which runs Whisper `base` through an OpenAI-compatible `/v1/audio/transcriptions` endpoint on the internal Vexa network. The Whisper service is not exposed through Caddy.
 
-Vexa API access is still controlled with Vexa API tokens. Public Admin API paths under `https://vexa-api.180dc-escp.org/admin/*` are protected by authentik.
+Vexa API access is controlled by Vexa tokens, not Authentik. User API requests to `https://vexa-api.180dc-escp.org` require `X-API-Key`; admin requests under `/admin/*` require `X-Admin-API-Key`.
 
 The Odoo migration CSVs were production migration inputs. They are not part of the managed repo or deploy path.
 
