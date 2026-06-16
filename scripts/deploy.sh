@@ -199,8 +199,8 @@ fi
 docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d --remove-orphans odoo
 wait_for_container_running odoo
 
-docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/caddy/.env" pull
-docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/caddy/.env" up -d --remove-orphans
+docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" pull
+docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" up -d --remove-orphans
 
 docker image prune -a -f >/dev/null
 docker builder prune -f >/dev/null

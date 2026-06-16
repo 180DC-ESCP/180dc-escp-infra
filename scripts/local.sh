@@ -70,7 +70,6 @@ ensure_envs() {
   ensure_env authentik
   ensure_env n8n
   ensure_env odoo
-  ensure_env caddy
   ensure_env vexa
 
   local config_file="$ROOT/config.env"
@@ -195,7 +194,7 @@ dc_odoo() {
 }
 
 dc_caddy() {
-  docker compose --project-directory "$ROOT/caddy" -f "$ROOT/caddy/docker-compose.yml" -f "$LOCAL_DIR/caddy.compose.yml" --env-file "$ROOT/config.env" --env-file "$ROOT/caddy/.env" "$@"
+  docker compose --project-directory "$ROOT/caddy" -f "$ROOT/caddy/docker-compose.yml" -f "$LOCAL_DIR/caddy.compose.yml" --env-file "$ROOT/config.env" "$@"
 }
 
 dc_vexa() {
