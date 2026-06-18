@@ -3,6 +3,13 @@ services:
     image: postgres:18.4-alpine
     container_name: n8n-db
     restart: unless-stopped
+    mem_limit: 256m
+    pids_limit: 100
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     environment:
@@ -26,6 +33,13 @@ services:
     image: n8nio/n8n:${N8N_IMAGE_TAG:-2.26.4}
     container_name: n8n
     restart: unless-stopped
+    mem_limit: 700m
+    pids_limit: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     environment:
@@ -65,6 +79,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5678/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - proxy
       - n8n-internal

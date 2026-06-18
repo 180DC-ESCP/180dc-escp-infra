@@ -3,6 +3,13 @@ services:
     image: postgres:18.4-alpine
     container_name: vexa-db
     restart: unless-stopped
+    mem_limit: 256m
+    pids_limit: 100
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     environment:
@@ -24,9 +31,16 @@ services:
       - vexa-internal
 
   whisper:
-    image: hwdsl2/whisper-server:${WHISPER_IMAGE_TAG:-latest@sha256:3f109fa1cfd99d701b9e60a8ef52457630b0711ef2c1ad44d57cd95e25b91b39}
+    image: hwdsl2/whisper-server@sha256:008ef78e8164be1a52d3c16a0a4702af4190bc355c057e481ceb35af739ab184
     container_name: vexa-whisper
     restart: unless-stopped
+    mem_limit: 1g
+    pids_limit: 150
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     environment:
@@ -48,9 +62,16 @@ services:
       - vexa-internal
 
   vexa-lite:
-    image: vexaai/vexa-lite:${IMAGE_TAG:-0.10.6.3-260610-2224@sha256:dbd137c076ee05e3b343742cdc0c52b685e7675f05a726554cc999c7ca8b1a39}
+    image: vexaai/vexa-lite@sha256:4752bc3cfe4c6a9a334018fe3f7c6a21f56616cd1de370d0c2c9f577206a36ec
     container_name: vexa-lite
     restart: unless-stopped
+    mem_limit: 1400m
+    pids_limit: 250
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     shm_size: 2gb
@@ -89,6 +110,12 @@ services:
         condition: service_healthy
       whisper:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8056/docs >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
     networks:
       - proxy
       - vexa-internal
@@ -97,6 +124,13 @@ services:
     image: python:3.14.6-alpine
     container_name: vexa-sso
     restart: unless-stopped
+    mem_limit: 128m
+    pids_limit: 50
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     env_file:
@@ -116,7 +150,13 @@ services:
       - ./sso-bridge.py:/app/sso-bridge.py:ro
     depends_on:
       vexa-lite:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - proxy
       - vexa-internal

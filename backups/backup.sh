@@ -3,61 +3,59 @@ set -euo pipefail
 
 umask 077
 
-BACKUP_DIR="/opt/180dc/backups"
+BACKUP_DIR="/opt/180dc/backups/databases"
 DATE="$(date +%Y%m%d_%H%M%S)"
-RETENTION_DAYS="${RETENTION_DAYS:-7}"
+RETENTION_COUNT="${RETENTION_COUNT:-14}"
 
-echo "=== Starting backup at $(date) ==="
+if ! [[ "$RETENTION_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+  echo "RETENTION_COUNT must be a positive integer" >&2
+  exit 1
+fi
 
-mkdir -p "$BACKUP_DIR/databases" "$BACKUP_DIR/volumes"
+echo "=== Starting database backup at $(date) ==="
+install -d -m 700 "$BACKUP_DIR"
 
 backup_postgres() {
   local container="$1"
   local user="$2"
   local db="$3"
   local name="$4"
-  local target="$BACKUP_DIR/databases/${name}_${DATE}.sql.gz"
+  local target="$BACKUP_DIR/${name}_${DATE}.dump"
+  local temporary="${target}.tmp"
 
-  if ! docker container inspect "$container" >/dev/null 2>&1; then
-    echo "Skipping $name database: container $container does not exist."
-    return
-  fi
-
-  if [ "$(docker inspect -f '{{.State.Running}}' "$container")" != "true" ]; then
-    echo "Skipping $name database: container $container is not running."
-    return
+  if [ "$(docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null || true)" != "true" ]; then
+    echo "Cannot back up $name: container $container is not running" >&2
+    return 1
   fi
 
   echo "Backing up $name database..."
-  docker exec "$container" pg_dump -U "$user" "$db" | gzip > "$target"
-}
-
-backup_volume() {
-  local volume="$1"
-  local name="$2"
-  local target="/backup/${name}_${DATE}.tar.gz"
-
-  if ! docker volume inspect "$volume" >/dev/null 2>&1; then
-    echo "Skipping $name volume: Docker volume $volume does not exist."
-    return
+  rm -f "$temporary"
+  if ! docker exec "$container" pg_dump \
+    --username "$user" \
+    --format custom \
+    --compress 6 \
+    --no-owner \
+    "$db" > "$temporary"; then
+    rm -f "$temporary"
+    return 1
   fi
 
-  echo "Backing up $name volume..."
-  docker run --rm -v "$volume":/data:ro -v "$BACKUP_DIR/volumes":/backup alpine tar czf "$target" -C /data .
-}
-
-backup_directory() {
-  local source="$1"
-  local name="$2"
-  local target="$BACKUP_DIR/volumes/${name}_${DATE}.tar.gz"
-
-  if [ ! -d "$source" ]; then
-    echo "Skipping $name directory: $source does not exist."
-    return
+  if ! docker exec -i "$container" pg_restore --list < "$temporary" >/dev/null; then
+    echo "Backup validation failed for $name" >&2
+    rm -f "$temporary"
+    return 1
   fi
 
-  echo "Backing up $name directory..."
-  tar czf "$target" -C "$source" .
+  mv "$temporary" "$target"
+
+  mapfile -t expired < <(
+    find "$BACKUP_DIR" -maxdepth 1 -type f -name "${name}_*.dump" -printf '%f\n' \
+      | sort -r \
+      | tail -n "+$((RETENTION_COUNT + 1))"
+  )
+  if [ "${#expired[@]}" -gt 0 ]; then
+    printf '%s\0' "${expired[@]}" | xargs -0 -r -I{} rm -f -- "$BACKUP_DIR/{}"
+  fi
 }
 
 backup_postgres authentik-db authentik authentik authentik
@@ -65,26 +63,12 @@ backup_postgres n8n-db n8n n8n n8n
 backup_postgres vexa-db vexa vexa vexa
 backup_postgres odoo-db odoo student_society odoo
 
-echo "Backing up Docker volumes..."
-backup_volume caddy_caddy_data caddy
-backup_volume n8n_n8n_data n8n_data
-backup_volume vexa_recordings vexa_recordings
-backup_volume vexa_tts_voices vexa_tts_voices
-backup_volume odoo_odoo-web-data odoo_web_data
-backup_directory /opt/180dc/authentik/data authentik_data
+# Runtime volumes are intentionally not backed up. Remove archives created by
+# older versions of this script so deployment frequency cannot consume the disk.
+rm -rf /opt/180dc/backups/volumes
+# Custom-format dumps supersede legacy compressed SQL snapshots.
+find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.sql.gz' -delete
 
-echo "Cleaning up old backups (keeping last $RETENTION_DAYS days)..."
-RETENTION_MINUTES=$((RETENTION_DAYS * 24 * 60))
-find "$BACKUP_DIR/databases" -name "*.sql.gz" -mmin +"$RETENTION_MINUTES" -delete
-find "$BACKUP_DIR/volumes" -name "*.tar.gz" -mmin +"$RETENTION_MINUTES" -delete
-
-TOTAL_SIZE="$(du -sh "$BACKUP_DIR" | cut -f1)"
-echo "=== Backup completed at $(date) ==="
-echo "Total backup size: $TOTAL_SIZE"
-
-echo ""
-echo "Latest database backups:"
-ls -lh "$BACKUP_DIR/databases" | grep "$DATE" || true
-echo ""
-echo "Latest volume backups:"
-ls -lh "$BACKUP_DIR/volumes" | grep "$DATE" || true
+echo "=== Database backup completed at $(date) ==="
+du -sh /opt/180dc/backups
+find "$BACKUP_DIR" -maxdepth 1 -type f -name "*_${DATE}.dump" -printf '%f %k KiB\n' | sort

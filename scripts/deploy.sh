@@ -11,6 +11,28 @@ require_root() {
   fi
 }
 
+ensure_swap() {
+  local swap_file="${SWAP_FILE:-/swapfile}"
+  local swap_size="${SWAP_SIZE:-2G}"
+
+  if swapon --show=NAME --noheadings | grep -Fxq "$swap_file"; then
+    return
+  fi
+
+  if [ ! -f "$swap_file" ]; then
+    echo "Creating $swap_size swap file at $swap_file..."
+    fallocate -l "$swap_size" "$swap_file"
+    chmod 600 "$swap_file"
+    mkswap "$swap_file" >/dev/null
+  fi
+
+  chmod 600 "$swap_file"
+  swapon "$swap_file"
+  if ! grep -Eq "^[[:space:]]*${swap_file//\//\\/}[[:space:]]" /etc/fstab; then
+    printf '%s none swap sw 0 0\n' "$swap_file" >> /etc/fstab
+  fi
+}
+
 dump_diagnostics() {
   local exit_code="$?"
   echo "deploy failed with exit code $exit_code" >&2
@@ -99,6 +121,24 @@ wait_for_container_running() {
   return 1
 }
 
+wait_for_container_healthy() {
+  local container="$1"
+  local tries=60
+  while [ "$tries" -gt 0 ]; do
+    if docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$container" 2>/dev/null | grep -qx healthy; then
+      return 0
+    fi
+    if [ $((tries % 6)) -eq 0 ]; then
+      echo "waiting for $container health..."
+    fi
+    tries=$((tries - 1))
+    sleep 5
+  done
+  docker logs --tail 100 "$container" >&2 || true
+  echo "$container did not become healthy" >&2
+  return 1
+}
+
 wait_for_odoo() {
   local tries=60
   while [ "$tries" -gt 0 ]; do
@@ -123,11 +163,15 @@ odoo_database_initialized() {
 trap dump_diagnostics ERR
 
 require_root
+ensure_swap
 
 docker network create proxy >/dev/null 2>&1 || true
 
 install -d "$LIVE_ROOT/authentik" "$LIVE_ROOT/apps/n8n" "$LIVE_ROOT/apps/vexa" "$LIVE_ROOT/apps/odoo" "$LIVE_ROOT/caddy" "$LIVE_ROOT/backups"
 
+# Install the current backup implementation before taking the pre-deploy
+# snapshot so old volume-backup behavior cannot return during an upgrade.
+sync_backups_config "$ROOT/backups" "$LIVE_ROOT/backups"
 if [ -x "$LIVE_ROOT/backups/backup.sh" ]; then
   "$LIVE_ROOT/backups/backup.sh"
 fi
@@ -137,7 +181,6 @@ sync_dir "$ROOT/n8n" "$LIVE_ROOT/apps/n8n"
 sync_dir "$ROOT/vexa" "$LIVE_ROOT/apps/vexa"
 sync_dir "$ROOT/odoo" "$LIVE_ROOT/apps/odoo"
 sync_dir "$ROOT/caddy" "$LIVE_ROOT/caddy"
-sync_backups_config "$ROOT/backups" "$LIVE_ROOT/backups"
 
 if [ -f "$ROOT/config.env" ]; then
   install -m 600 "$ROOT/config.env" "$LIVE_ROOT/config.env"
@@ -155,10 +198,13 @@ docker compose -f "$LIVE_ROOT/authentik/docker-compose.yml" --env-file "$LIVE_RO
 
 docker compose -f "$LIVE_ROOT/apps/n8n/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/n8n/.env" pull
 docker compose -f "$LIVE_ROOT/apps/n8n/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/n8n/.env" up -d --remove-orphans
+wait_for_container_healthy n8n
 
 docker compose -f "$LIVE_ROOT/apps/vexa/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/vexa/.env" pull
 docker compose -f "$LIVE_ROOT/apps/vexa/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/vexa/.env" up -d --remove-orphans
 wait_for_vexa
+wait_for_container_healthy vexa-lite
+wait_for_container_healthy vexa-sso
 
 docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/odoo/.env" pull
 docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d db
@@ -170,10 +216,11 @@ else
   docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/odoo/.env" --profile init run --rm init
 fi
 docker compose -f "$LIVE_ROOT/apps/odoo/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" --env-file "$LIVE_ROOT/apps/odoo/.env" up -d --remove-orphans odoo
-wait_for_container_running odoo
+wait_for_container_healthy odoo
 
 docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" pull
 docker compose -f "$LIVE_ROOT/caddy/docker-compose.yml" --env-file "$LIVE_ROOT/config.env" up -d --remove-orphans
+wait_for_container_healthy caddy
 
 docker image prune -a -f >/dev/null
 docker builder prune -f >/dev/null

@@ -91,6 +91,12 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "vexa-authentik-sso/1.0"
 
     def do_GET(self):
+        if self.path == "/health":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"status":"ok"}')
+            return
         if self.path not in {"/login", "/auth/sso"}:
             self.send_error(404)
             return

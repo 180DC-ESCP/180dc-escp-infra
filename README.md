@@ -11,7 +11,9 @@ This repository manages configuration, deployment scripts, and application-level
 - application databases
 - Docker volumes
 
-Those remain server-local and are protected by database and volume backups.
+Those remain server-local. Persistent application records are protected by
+database backups; runtime volumes, generated media, caches, and application
+images are intentionally not backed up.
 
 ## Managed services
 
@@ -26,7 +28,7 @@ All exposed websites and tools are expected to pass through authentik before app
 
 ## Deployment
 
-Deployment is handled by GitHub Actions. The workflow copies this repo to the server, writes environment files from GitHub Actions secrets, runs a server-side backup, updates containers, reconciles authentik config, and verifies public routes.
+Deployment is handled by GitHub Actions. The workflow copies this repo to the server, writes environment files from GitHub Actions secrets, runs an atomic database-only backup, updates containers, reconciles authentik config, and verifies container health, direct application health, and origin routes without traversing Cloudflare.
 
 Deploys are idempotent. `docker compose up -d` is run for each managed Compose project, so Docker only recreates containers when the service definition or image actually changes. Bind-mounted config that Compose cannot detect is handled with service-level reloads, for example Caddy receives `caddy reload` after its config is synced.
 
@@ -132,6 +134,10 @@ Vexa Lite dashboard is protected by authentik at `https://vexa.180dc-escp.org` a
 
 Transcription is local. Vexa Lite points at the private `whisper` service in `vexa/docker-compose.yml`, which runs Whisper `base` through an OpenAI-compatible `/v1/audio/transcriptions` endpoint on the internal Vexa network. The Whisper service is not exposed through Caddy.
 
+The Vexa Lite and Whisper images are pinned by immutable digest in
+`vexa/docker-compose.yml`. Update those digests deliberately after validating a
+new release.
+
 Vexa API access is controlled by Vexa tokens, not Authentik. User API requests to `https://vexa-api.180dc-escp.org` require `X-API-Key`; admin requests under `/admin/*` require `X-Admin-API-Key`.
 
 The Odoo migration CSVs were production migration inputs. They are not part of the managed repo or deploy path.
@@ -144,6 +150,33 @@ Odoo is deployed as a managed app at `https://odoo.180dc-escp.org` and protected
 Odoo migration data lives only in the initialized production database and its backups. Do not recommit member/client migration exports to this repository.
 
 Odoo uses `student_society.controllers.authentik_sso` for Authentik SSO. Caddy redirects `/login`, `/signin`, and `/web/login` to `/auth/authentik/login`; the controller verifies the internal SSO bridge secret, consumes verified Authentik identity headers, reconciles an internal Odoo user, assigns member/admin groups, and finalizes the Odoo session.
+
+## Backups and restores
+
+`/opt/180dc/backups/backup.sh` creates validated PostgreSQL custom-format dumps
+for Authentik, n8n, Vexa, and Odoo. It retains the 14 newest dumps per database.
+The script runs daily at 03:00 UTC and before deployment. It does not archive
+Docker volumes, application images, caches, recordings, voices, or other runtime
+files.
+
+Restore a database by selecting one of the generated filenames:
+
+```sh
+ls -1 /opt/180dc/backups/databases
+/opt/180dc/backups/restore.sh n8n n8n_YYYYMMDD_HHMMSS.dump
+```
+
+The restore imports into a staging database first. The application is stopped
+only for the final database swap, and a failed import leaves the current
+database unchanged.
+
+## Runtime safeguards
+
+Compose services have health checks, bounded memory/PID usage, and rotated
+Docker JSON logs. Production deployment provisions a persistent 2 GiB swap file
+when the host has no active swap. Verification connects directly to the local
+Caddy listener and application containers, so Cloudflare challenges do not
+affect deploy results.
 
 Initial production setup is automatic during deploy:
 

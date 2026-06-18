@@ -3,6 +3,13 @@ services:
     image: postgres:18.4-alpine
     container_name: odoo-db
     restart: unless-stopped
+    mem_limit: 256m
+    pids_limit: 100
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     env_file:
@@ -25,6 +32,13 @@ services:
     image: odoo:19.0-20260609
     container_name: odoo
     restart: unless-stopped
+    mem_limit: 512m
+    pids_limit: 150
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     env_file:
@@ -51,6 +65,12 @@ services:
       - --db_host=db
       - --db_user=${POSTGRES_USER:-odoo}
       - --db_password=${POSTGRES_PASSWORD:?database password required}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8069/web/login >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - proxy
       - odoo-internal
@@ -59,6 +79,13 @@ services:
     image: odoo:19.0-20260609
     profiles:
       - init
+    mem_limit: 512m
+    pids_limit: 150
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     env_file:
       - ../config.env
       - .env

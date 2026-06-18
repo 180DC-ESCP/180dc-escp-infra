@@ -3,6 +3,13 @@ services:
     image: caddy:2.11.4-alpine
     container_name: caddy
     restart: unless-stopped
+    mem_limit: 128m
+    pids_limit: 100
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     env_file:
@@ -17,6 +24,12 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:2019/config/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - proxy
 
