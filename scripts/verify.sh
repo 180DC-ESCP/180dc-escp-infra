@@ -30,6 +30,34 @@ require_healthy() {
   echo "ok healthy $container"
 }
 
+container_env_value() {
+  local container="$1"
+  local key="$2"
+  docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$container" \
+    | awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2) }'
+}
+
+require_shared_sso_secret() {
+  local expected
+  local container
+  local actual
+
+  expected="$(container_env_value caddy SSO_SHARED_SECRET)"
+  if [ -z "$expected" ]; then
+    echo "caddy SSO shared secret is missing" >&2
+    return 1
+  fi
+
+  for container in n8n vexa-sso odoo; do
+    actual="$(container_env_value "$container" SSO_SHARED_SECRET)"
+    if [ -z "$actual" ] || [ "$actual" != "$expected" ]; then
+      echo "SSO shared secret mismatch: caddy and $container" >&2
+      return 1
+    fi
+    echo "ok shared SSO secret caddy/$container"
+  done
+}
+
 expect_origin_code() {
   local host="$1"
   local path="$2"
@@ -62,6 +90,8 @@ for container in \
 do
   require_healthy "$container"
 done
+
+require_shared_sso_secret
 
 # These probes reach the applications themselves, independently of Authentik
 # redirects and Cloudflare challenge decisions.

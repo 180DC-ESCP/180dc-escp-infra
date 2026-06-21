@@ -142,7 +142,7 @@ Vexa API access is controlled by Vexa tokens, not Authentik. User API requests t
 
 The Odoo migration CSVs were production migration inputs. They are not part of the managed repo or deploy path.
 
-`escp@180dc.org` is the platform admin target. Existing default/admin owner accounts in authentik, n8n, and Odoo live in their application databases; remove or demote them during live migration after confirming `escp@180dc.org` can sign in and administer the app.
+`escp@180dc.org` is the platform admin target. The deployment generates one SSO bridge secret in the shared `config.env` used by Caddy and all bridge services; verification fails if any running container has a different value. Existing default/admin owner accounts in authentik, n8n, and Odoo live in their application databases; remove or demote them during live migration after confirming `escp@180dc.org` can sign in and administer the app.
 
 ## Odoo
 
