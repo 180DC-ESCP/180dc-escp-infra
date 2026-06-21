@@ -2,6 +2,12 @@
 set -euo pipefail
 
 BACKUP_DIR="/opt/180dc/backups/databases"
+BACKUP_CONFIG_FILE="${BACKUP_CONFIG_FILE:-/opt/180dc/backups/database.env}"
+
+if [ -f "$BACKUP_CONFIG_FILE" ]; then
+  # shellcheck disable=SC1090
+  source "$BACKUP_CONFIG_FILE"
+fi
 
 usage() {
   echo "Usage: $0 <authentik|n8n|vexa|odoo> <backup-file>"
@@ -29,26 +35,28 @@ fi
 
 case "$COMPONENT" in
   authentik)
-    CONTAINER="authentik-db"; DB_USER="authentik"; DB_NAME="authentik"
-    COMPOSE_FILE="/opt/180dc/authentik/docker-compose.yml"; SERVICES=(server worker)
+    CONTAINER="authentik-db"; DB_USER="${AUTHENTIK_DB_USER:-authentik}"; DB_NAME="${AUTHENTIK_DB_NAME:-authentik}"
+    COMPOSE_FILE="/opt/180dc/services/authentik/docker-compose.yml"; SERVICES=(server worker)
     ;;
   n8n)
-    CONTAINER="n8n-db"; DB_USER="n8n"; DB_NAME="n8n"
-    COMPOSE_FILE="/opt/180dc/apps/n8n/docker-compose.yml"; SERVICES=(n8n)
+    CONTAINER="n8n-db"; DB_USER="${N8N_DB_USER:-n8n}"; DB_NAME="${N8N_DB_NAME:-n8n}"
+    COMPOSE_FILE="/opt/180dc/services/n8n/docker-compose.yml"; SERVICES=(n8n)
     ;;
   vexa)
-    CONTAINER="vexa-db"; DB_USER="vexa"; DB_NAME="vexa"
-    COMPOSE_FILE="/opt/180dc/apps/vexa/docker-compose.yml"; SERVICES=(vexa-lite vexa-sso)
+    CONTAINER="vexa-db"; DB_USER="${VEXA_DB_USER:-vexa}"; DB_NAME="${VEXA_DB_NAME:-vexa}"
+    COMPOSE_FILE="/opt/180dc/services/vexa/docker-compose.yml"; SERVICES=(vexa-lite vexa-sso)
     ;;
   odoo)
-    CONTAINER="odoo-db"; DB_USER="odoo"; DB_NAME="student_society"
-    COMPOSE_FILE="/opt/180dc/apps/odoo/docker-compose.yml"; SERVICES=(odoo)
+    CONTAINER="odoo-db"; DB_USER="${ODOO_DB_USER:-odoo}"; DB_NAME="${ODOO_DB_NAME:-student_society}"
+    COMPOSE_FILE="/opt/180dc/services/odoo/docker-compose.yml"; SERVICES=(odoo)
     ;;
   *)
     usage >&2
     exit 1
     ;;
 esac
+
+COMPOSE=(docker compose --env-file "$(dirname "$COMPOSE_FILE")/.env" -f "$COMPOSE_FILE")
 
 case "$BACKUP_NAME" in
   "${COMPONENT}_"*.dump|"${COMPONENT}_"*.sql.gz) ;;
@@ -95,7 +103,7 @@ cleanup() {
   fi
 
   if [ "$SERVICES_STOPPED" = true ]; then
-    docker compose -f "$COMPOSE_FILE" start "${SERVICES[@]}" || true
+    "${COMPOSE[@]}" start "${SERVICES[@]}" || true
   fi
   exit "$status"
 }
@@ -130,7 +138,7 @@ esac
 
 docker exec "$CONTAINER" psql -XAt -U "$DB_USER" -d "$STAGING_DB" -c "SELECT 1" | grep -qx 1
 
-docker compose -f "$COMPOSE_FILE" stop "${SERVICES[@]}"
+"${COMPOSE[@]}" stop "${SERVICES[@]}"
 SERVICES_STOPPED=true
 
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d postgres \
@@ -144,6 +152,6 @@ docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d postgres \
 drop_database "$PREVIOUS_DB"
 SWAP_STARTED=false
 
-docker compose -f "$COMPOSE_FILE" start "${SERVICES[@]}"
+"${COMPOSE[@]}" start "${SERVICES[@]}"
 SERVICES_STOPPED=false
 echo "=== Restore completed successfully ==="

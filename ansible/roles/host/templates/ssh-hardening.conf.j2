@@ -1,0 +1,10 @@
+Port {{ ssh_port }}
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+AllowUsers {{ deploy_user }}
+X11Forwarding no
+MaxAuthTries 3
+LoginGraceTime 30

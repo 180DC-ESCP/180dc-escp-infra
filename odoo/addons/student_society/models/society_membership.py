@@ -1,4 +1,9 @@
+import os
+
 from odoo import api, exceptions, fields, models
+
+
+PLATFORM_ADMIN_EMAIL = os.environ.get("PLATFORM_ADMIN_EMAIL", "escp@180dc.org").strip().lower()
 
 
 class SocietyRole(models.Model):
@@ -27,6 +32,19 @@ class SocietyRole(models.Model):
 
     _name_unique = models.Constraint("unique(name)", "Role names must be unique.")
 
+    def write(self, vals):
+        previous_group_ids = self.management_group_id.ids
+        result = super().write(vals)
+        if "management_group_id" in vals:
+            partner_ids = self.env["society.member.assignment"].sudo().search(
+                [("role_id", "in", self.ids)]
+            ).partner_id.ids
+            self.env["society.member.assignment"]._reconcile_mapped_access_groups(
+                partner_ids,
+                additional_managed_group_ids=previous_group_ids,
+            )
+        return result
+
 
 class SocietyMemberAssignment(models.Model):
     _name = "society.member.assignment"
@@ -52,13 +70,20 @@ class SocietyMemberAssignment(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         assignments = super().create(vals_list)
-        assignments._apply_mapped_access_groups()
+        assignments._reconcile_mapped_access_groups(assignments.partner_id.ids)
         return assignments
 
     def write(self, vals):
+        previous_partner_ids = self.partner_id.ids
         result = super().write(vals)
         if {"partner_id", "role_id", "date_start", "date_end"} & set(vals):
-            self._apply_mapped_access_groups()
+            self._reconcile_mapped_access_groups(previous_partner_ids + self.partner_id.ids)
+        return result
+
+    def unlink(self):
+        partner_ids = self.partner_id.ids
+        result = super().unlink()
+        self._reconcile_mapped_access_groups(partner_ids)
         return result
 
     @api.depends("date_start", "date_end")
@@ -99,12 +124,43 @@ class SocietyMemberAssignment(models.Model):
             if self.search_count(domain):
                 raise exceptions.ValidationError("A member cannot have overlapping role/campus assignments.")
 
-    def _apply_mapped_access_groups(self):
+    @api.model
+    def _cron_reconcile_access_groups(self):
+        self._reconcile_mapped_access_groups()
+
+    @api.model
+    def _reconcile_mapped_access_groups(self, partner_ids=None, additional_managed_group_ids=None):
         today = fields.Date.context_today(self)
-        for assignment in self:
-            group = assignment.role_id.management_group_id
-            if not group:
-                continue
-            if assignment.date_start and assignment.date_start <= today and (not assignment.date_end or assignment.date_end >= today):
-                users = self.env["res.users"].sudo().search([("partner_id", "=", assignment.partner_id.id)])
-                users.write({"group_ids": [(4, group.id)]})
+        Role = self.env["society.role"].sudo()
+        managed_groups = Role.search([]).management_group_id
+        managed_groups |= self.env["res.groups"].sudo().browse(additional_managed_group_ids or [])
+        managed_group_ids = set((managed_groups | managed_groups.trans_implied_ids).ids)
+        baseline_groups = self.env["res.groups"].sudo().browse(
+            [
+                self.env.ref("base.group_user").id,
+                self.env.ref("student_society.group_society_member").id,
+            ]
+        )
+        managed_group_ids -= set((baseline_groups | baseline_groups.trans_implied_ids).ids)
+        if not managed_group_ids:
+            return
+
+        user_domain = [("partner_id", "in", partner_ids)] if partner_ids else []
+        users = self.env["res.users"].sudo().with_context(active_test=False).search(user_domain)
+        for user in users:
+            assignments = self.sudo().search(
+                [
+                    ("partner_id", "=", user.partner_id.id),
+                    ("date_start", "<=", today),
+                    "|",
+                    ("date_end", "=", False),
+                    ("date_end", ">=", today),
+                ]
+            )
+            desired_groups = assignments.role_id.management_group_id
+            if (user.email or user.login or "").strip().lower() == PLATFORM_ADMIN_EMAIL:
+                desired_groups |= self.env.ref("student_society.group_society_admin")
+            desired_group_ids = set((desired_groups | desired_groups.trans_implied_ids).ids)
+            reconciled_group_ids = (set(user.group_ids.ids) - managed_group_ids) | desired_group_ids
+            if reconciled_group_ids != set(user.group_ids.ids):
+                user.write({"group_ids": [(6, 0, list(reconciled_group_ids))]})

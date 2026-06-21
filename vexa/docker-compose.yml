@@ -1,10 +1,10 @@
 services:
   postgres:
-    image: postgres:18.4-alpine
+    image: ${POSTGRES_IMAGE:-postgres:18.4-alpine}
     container_name: vexa-db
     restart: unless-stopped
-    mem_limit: 256m
-    pids_limit: 100
+    mem_limit: ${VEXA_DB_MEMORY_LIMIT:-256m}
+    pids_limit: ${VEXA_DB_PIDS_LIMIT:-100}
     logging:
       driver: json-file
       options:
@@ -31,11 +31,11 @@ services:
       - vexa-internal
 
   whisper:
-    image: hwdsl2/whisper-server@sha256:008ef78e8164be1a52d3c16a0a4702af4190bc355c057e481ceb35af739ab184
+    image: ${WHISPER_IMAGE:-hwdsl2/whisper-server@sha256:008ef78e8164be1a52d3c16a0a4702af4190bc355c057e481ceb35af739ab184}
     container_name: vexa-whisper
     restart: unless-stopped
-    mem_limit: 1g
-    pids_limit: 150
+    mem_limit: ${VEXA_WHISPER_MEMORY_LIMIT:-1g}
+    pids_limit: ${VEXA_WHISPER_PIDS_LIMIT:-150}
     logging:
       driver: json-file
       options:
@@ -62,11 +62,11 @@ services:
       - vexa-internal
 
   vexa-lite:
-    image: vexaai/vexa-lite@sha256:4752bc3cfe4c6a9a334018fe3f7c6a21f56616cd1de370d0c2c9f577206a36ec
+    image: ${VEXA_IMAGE:-vexaai/vexa-lite@sha256:4752bc3cfe4c6a9a334018fe3f7c6a21f56616cd1de370d0c2c9f577206a36ec}
     container_name: vexa-lite
     restart: unless-stopped
-    mem_limit: 1400m
-    pids_limit: 250
+    mem_limit: ${VEXA_MEMORY_LIMIT:-1400m}
+    pids_limit: ${VEXA_PIDS_LIMIT:-250}
     logging:
       driver: json-file
       options:
@@ -75,10 +75,7 @@ services:
     security_opt:
       - no-new-privileges:true
     shm_size: 2gb
-    ports:
-      - "127.0.0.1:8056:8056"
     env_file:
-      - ../config.env
       - .env
     environment:
       DATABASE_URL: postgresql://${DB_USER:-vexa}:${DB_PASSWORD:?database password required}@postgres:5432/${DB_NAME:-vexa}
@@ -117,15 +114,15 @@ services:
       retries: 10
       start_period: 90s
     networks:
-      - proxy
+      - caddy-vexa
       - vexa-internal
 
   vexa-sso:
-    image: python:3.14.6-alpine
+    image: ${VEXA_SSO_IMAGE:-python:3.14.6-alpine}
     container_name: vexa-sso
     restart: unless-stopped
-    mem_limit: 128m
-    pids_limit: 50
+    mem_limit: ${VEXA_SSO_MEMORY_LIMIT:-128m}
+    pids_limit: ${VEXA_SSO_PIDS_LIMIT:-50}
     logging:
       driver: json-file
       options:
@@ -134,7 +131,6 @@ services:
     security_opt:
       - no-new-privileges:true
     env_file:
-      - ../config.env
       - .env
     environment:
       PORT: 8080
@@ -142,7 +138,7 @@ services:
       VEXA_ADMIN_API_KEY: ${ADMIN_TOKEN:?admin token required}
       VEXA_AUTH_COOKIE_NAME: vexa-token-lite
       VEXA_USER_INFO_COOKIE_NAME: vexa-user-info-lite
-      SSO_SHARED_SECRET: ${SSO_SHARED_SECRET:?sso shared secret required}
+      SSO_SHARED_SECRET: ${VEXA_SSO_SECRET:?vexa sso secret required}
       VEXA_SSO_MAX_CONCURRENT_BOTS: ${VEXA_SSO_MAX_CONCURRENT_BOTS:-1}
       VEXA_SSO_TOKEN_SCOPES: ${VEXA_SSO_TOKEN_SCOPES:-bot,tx,browser}
     command: ["python", "/app/sso-bridge.py"]
@@ -158,17 +154,21 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - proxy
+      - caddy-vexa
       - vexa-internal
 
 volumes:
   postgres_data:
+    name: vexa_postgres_data
   recordings:
+    name: vexa_recordings
   tts_voices:
+    name: vexa_tts_voices
   whisper_data:
+    name: vexa_whisper_data
 
 networks:
-  proxy:
+  caddy-vexa:
     external: true
   vexa-internal:
     driver: bridge

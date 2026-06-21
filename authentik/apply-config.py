@@ -13,6 +13,7 @@ from authentik.stages.user_write.models import UserWriteStage
 
 
 BASE_URL = os.environ.get("AUTHENTIK_BASE_URL", "https://login.180dc-escp.org").rstrip("/")
+BASE_DOMAIN = os.environ.get("BASE_DOMAIN", "180dc-escp.org").strip().lower()
 ALLOWED_DOMAIN = os.environ.get("AUTHENTIK_ALLOWED_EMAIL_DOMAIN", "180dc.org").lstrip("@").lower()
 PLATFORM_ADMIN_EMAIL = os.environ.get("PLATFORM_ADMIN_EMAIL", "escp@180dc.org").strip().lower()
 GOOGLE_CLIENT_ID = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
@@ -111,13 +112,13 @@ authorization_flow = flow("default-provider-authorization-implicit-consent")
 invalidation_flow = flow("default-provider-invalidation-flow")
 
 apps = [
-    ("n8n", "n8n", "https://n8n.180dc-escp.org"),
-    ("Odoo", "odoo", "https://odoo.180dc-escp.org"),
+    ("n8n", "n8n", f"https://n8n.{BASE_DOMAIN}"),
+    ("Odoo", "odoo", f"https://odoo.{BASE_DOMAIN}"),
 ]
 obsolete_app_slugs = {"bimi", "n8n-hooks", "odoo-retired", "vexa-api-admin"}
 obsolete_provider_names = {"BIMI", "n8n hooks", "Odoo retired", "Vexa API Admin"}
 if INCLUDE_VEXA:
-    apps.insert(1, ("Vexa", "vexa", "https://vexa.180dc-escp.org"))
+    apps.insert(1, ("Vexa", "vexa", f"https://vexa.{BASE_DOMAIN}"))
 else:
     obsolete_app_slugs.add("vexa")
     obsolete_provider_names.add("Vexa")

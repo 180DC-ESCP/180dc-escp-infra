@@ -1,0 +1,45 @@
+---
+- name: Manage the 180DC ESCP production server
+  hosts: production
+  become: true
+  gather_facts: true
+  pre_tasks:
+    - name: Validate controller inputs
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == 'Debian'
+          - deploy_public_key | length > 40
+          - lookup('env', 'PRODUCTION_SECRETS_FILE') | length > 0
+          - google_oauth_client_id != 'replace-with-google-client-id'
+        fail_msg: Debian/Ubuntu, DEPLOY_PUBLIC_KEY, and PRODUCTION_SECRETS_FILE are required.
+
+    - name: Load production secrets
+      ansible.builtin.include_vars:
+        file: "{{ lookup('env', 'PRODUCTION_SECRETS_FILE') }}"
+        name: production_secrets
+      no_log: true
+
+    - name: Validate production secret bundle
+      ansible.builtin.assert:
+        that:
+          - production_secrets.authentik.db_password | length >= 16
+          - production_secrets.authentik.secret_key | length >= 32
+          - production_secrets.n8n.db_password | length >= 16
+          - production_secrets.n8n.encryption_key | length >= 32
+          - production_secrets.vexa.db_password | length >= 16
+          - production_secrets.vexa.admin_token | length >= 24
+          - production_secrets.odoo.db_password | length >= 16
+          - production_secrets.sso.n8n | length >= 32
+          - production_secrets.sso.vexa | length >= 32
+          - production_secrets.sso.odoo | length >= 32
+          - production_secrets.google.client_secret | length >= 8
+          - not smtp_enabled or production_secrets.smtp.password | default('') | length > 0
+        fail_msg: PRODUCTION_SECRETS is missing a required value or contains an undersized secret.
+      no_log: true
+
+  roles:
+    - host
+    - docker
+    - backup
+    - services
+    - verify

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run 180DC database backup daily
+
+[Timer]
+OnCalendar=*-*-* {{ '%02d' | format(backup_hour_utc) }}:00:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+Unit=180dc-backup.service
+
+[Install]
+WantedBy=timers.target

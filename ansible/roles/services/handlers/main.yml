@@ -1,0 +1,49 @@
+---
+- name: Validate Caddy
+  ansible.builtin.command: docker exec caddy caddy validate --config /etc/caddy/Caddyfile
+  changed_when: false
+  listen: Reload Caddy
+
+- name: Reload Caddy configuration
+  ansible.builtin.command: docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+  changed_when: true
+  listen: Reload Caddy
+
+- name: Restart n8n
+  ansible.builtin.command:
+    cmd: docker compose --env-file .env restart n8n
+    chdir: "{{ services_root }}/n8n"
+  changed_when: true
+
+- name: Restart Vexa SSO
+  ansible.builtin.command:
+    cmd: docker compose --env-file .env restart vexa-sso
+    chdir: "{{ services_root }}/vexa"
+  changed_when: true
+
+- name: Stop Odoo for module upgrade
+  ansible.builtin.command:
+    cmd: docker compose --env-file .env stop odoo
+    chdir: "{{ services_root }}/odoo"
+  changed_when: true
+  listen: Upgrade Odoo module
+
+- name: Upgrade Odoo module
+  ansible.builtin.command:
+    cmd: >-
+      docker compose --env-file .env run --rm --no-deps odoo
+      odoo server -d {{ database.odoo.name }} -u student_society
+      --without-demo=True --stop-after-init
+      --db_host=db --db_user={{ database.odoo.user }}
+      --db_password={{ production_secrets.odoo.db_password }}
+    chdir: "{{ services_root }}/odoo"
+  no_log: true
+  changed_when: true
+  listen: Upgrade Odoo module
+
+- name: Start Odoo after module upgrade
+  ansible.builtin.command:
+    cmd: docker compose --env-file .env start odoo
+    chdir: "{{ services_root }}/odoo"
+  changed_when: true
+  listen: Upgrade Odoo module

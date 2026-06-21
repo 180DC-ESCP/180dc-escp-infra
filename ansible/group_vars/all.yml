@@ -1,0 +1,74 @@
+base_domain: 180dc-escp.org
+allowed_email_domain: 180dc.org
+platform_admin_email: escp@180dc.org
+host_timezone: Etc/UTC
+swap_size_mb: 2048
+deploy_user: deploy
+ssh_port: "{{ lookup('env', 'DEPLOY_PORT') | default('22', true) | int }}"
+deploy_public_key: "{{ lookup('env', 'DEPLOY_PUBLIC_KEY') }}"
+operator_public_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIND4XP5OxCO4wmx+TPaPk/KG/aHmpXwLn+1rT2gG0wOe sebimichel1@gmail.com
+
+live_root: /opt/180dc
+services_root: /opt/180dc/services
+backup_root: /opt/180dc/backups
+backup_retention_count: 7
+backup_hour_utc: 3
+
+google_oauth_client_id: 829973085957-d3ip7355rgip1p7ra8s9laupk9lc1aeo.apps.googleusercontent.com
+smtp_enabled: false
+smtp_host: ""
+smtp_port: 587
+smtp_username: ""
+smtp_sender: ""
+smtp_use_tls: false
+
+images:
+  caddy: caddy:2.11.4-alpine
+  postgres: postgres:18.4-alpine
+  authentik: ghcr.io/goauthentik/server:2026.5.3
+  n8n: n8nio/n8n:2.26.4
+  odoo: odoo:19.0-20260609
+  vexa: vexaai/vexa-lite@sha256:4752bc3cfe4c6a9a334018fe3f7c6a21f56616cd1de370d0c2c9f577206a36ec
+  whisper: hwdsl2/whisper-server@sha256:008ef78e8164be1a52d3c16a0a4702af4190bc355c057e481ceb35af739ab184
+  vexa_sso: python:3.14.6-alpine
+
+resource_limits:
+  caddy: {memory: 128m, pids: 100}
+  authentik_db: {memory: 400m, pids: 150}
+  authentik_server: {memory: 900m, pids: 250}
+  authentik_worker: {memory: 600m, pids: 250}
+  n8n_db: {memory: 256m, pids: 100}
+  n8n: {memory: 700m, pids: 200}
+  vexa_db: {memory: 256m, pids: 100}
+  vexa_whisper: {memory: 1g, pids: 150}
+  vexa: {memory: 1400m, pids: 250}
+  vexa_sso: {memory: 128m, pids: 50}
+  odoo_db: {memory: 256m, pids: 100}
+  odoo: {memory: 512m, pids: 150}
+
+database:
+  authentik: {name: authentik, user: authentik}
+  n8n: {name: n8n, user: n8n}
+  vexa: {name: vexa, user: vexa}
+  odoo: {name: student_society, user: odoo}
+
+caddy_networks:
+  - caddy-authentik
+  - caddy-n8n
+  - caddy-vexa
+  - caddy-odoo
+
+expected_caddy_network:
+  authentik-server: caddy-authentik
+  n8n: caddy-n8n
+  vexa-lite: caddy-vexa
+  vexa-sso: caddy-vexa
+  odoo: caddy-odoo
+
+service_names:
+  - authentik
+  - n8n
+  - vexa
+  - odoo
+  - caddy

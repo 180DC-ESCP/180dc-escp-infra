@@ -3,9 +3,21 @@ set -euo pipefail
 
 umask 077
 
+exec 9>/run/lock/180dc-backup.lock
+if ! flock -n 9; then
+  echo "Another backup is already running" >&2
+  exit 1
+fi
+
 BACKUP_DIR="/opt/180dc/backups/databases"
+BACKUP_CONFIG_FILE="${BACKUP_CONFIG_FILE:-/opt/180dc/backups/database.env}"
 DATE="$(date +%Y%m%d_%H%M%S)"
-RETENTION_COUNT="${RETENTION_COUNT:-14}"
+RETENTION_COUNT="${RETENTION_COUNT:-7}"
+
+if [ -f "$BACKUP_CONFIG_FILE" ]; then
+  # shellcheck disable=SC1090
+  source "$BACKUP_CONFIG_FILE"
+fi
 
 if ! [[ "$RETENTION_COUNT" =~ ^[1-9][0-9]*$ ]]; then
   echo "RETENTION_COUNT must be a positive integer" >&2
@@ -30,7 +42,7 @@ backup_postgres() {
 
   echo "Backing up $name database..."
   rm -f "$temporary"
-  if ! docker exec "$container" pg_dump \
+  if ! nice -n 10 ionice -c 2 -n 7 docker exec "$container" pg_dump \
     --username "$user" \
     --format custom \
     --compress 6 \
@@ -40,7 +52,7 @@ backup_postgres() {
     return 1
   fi
 
-  if ! docker exec -i "$container" pg_restore --list < "$temporary" >/dev/null; then
+  if ! nice -n 10 ionice -c 2 -n 7 docker exec -i "$container" pg_restore --list < "$temporary" >/dev/null; then
     echo "Backup validation failed for $name" >&2
     rm -f "$temporary"
     return 1
@@ -58,10 +70,10 @@ backup_postgres() {
   fi
 }
 
-backup_postgres authentik-db authentik authentik authentik
-backup_postgres n8n-db n8n n8n n8n
-backup_postgres vexa-db vexa vexa vexa
-backup_postgres odoo-db odoo student_society odoo
+backup_postgres authentik-db "${AUTHENTIK_DB_USER:-authentik}" "${AUTHENTIK_DB_NAME:-authentik}" authentik
+backup_postgres n8n-db "${N8N_DB_USER:-n8n}" "${N8N_DB_NAME:-n8n}" n8n
+backup_postgres vexa-db "${VEXA_DB_USER:-vexa}" "${VEXA_DB_NAME:-vexa}" vexa
+backup_postgres odoo-db "${ODOO_DB_USER:-odoo}" "${ODOO_DB_NAME:-student_society}" odoo
 
 # Runtime volumes are intentionally not backed up. Remove archives created by
 # older versions of this script so deployment frequency cannot consume the disk.

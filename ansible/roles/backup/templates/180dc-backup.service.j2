@@ -1,0 +1,12 @@
+[Unit]
+Description=180DC database backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+Environment=RETENTION_COUNT={{ backup_retention_count }}
+ExecStart={{ backup_root }}/backup.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

@@ -1,0 +1,56 @@
+---
+- name: Bootstrap the production host
+  hosts: production
+  gather_facts: false
+  become: true
+  vars:
+    bootstrap_public_key: "{{ lookup('env', 'DEPLOY_PUBLIC_KEY') }}"
+    bootstrap_authorized_keys: "{{ ([bootstrap_public_key] + operator_public_keys) | reject('equalto', '') | join('\n') }}"
+  pre_tasks:
+    - name: Install Python for Ansible
+      ansible.builtin.raw: test -x /usr/bin/python3 || (apt-get update && apt-get install -y python3)
+      changed_when: false
+
+    - name: Gather host facts
+      ansible.builtin.setup:
+
+    - name: Validate bootstrap inputs
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == 'Debian'
+          - bootstrap_public_key | length > 40
+        fail_msg: Bootstrap requires Debian/Ubuntu and DEPLOY_PUBLIC_KEY.
+
+  tasks:
+    - name: Install sudo
+      ansible.builtin.apt:
+        name: sudo
+        state: present
+        update_cache: true
+
+    - name: Create deployment user
+      ansible.builtin.user:
+        name: deploy
+        shell: /bin/bash
+        create_home: true
+        groups: sudo
+        append: true
+
+    - name: Install deployment SSH key
+      ansible.posix.authorized_key:
+        user: deploy
+        key: "{{ bootstrap_authorized_keys }}"
+        exclusive: true
+
+    - name: Grant deployment sudo access
+      ansible.builtin.copy:
+        dest: /etc/sudoers.d/90-deploy
+        content: "deploy ALL=(ALL) NOPASSWD:ALL\n"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: /usr/sbin/visudo -cf %s
+
+    - name: Verify deployment sudo access
+      ansible.builtin.command: sudo -u deploy sudo -n true
+      changed_when: false

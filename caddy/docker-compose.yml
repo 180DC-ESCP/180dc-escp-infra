@@ -1,10 +1,10 @@
 services:
   caddy:
-    image: caddy:2.11.4-alpine
+    image: ${CADDY_IMAGE:-caddy:2.11.4-alpine}
     container_name: caddy
     restart: unless-stopped
-    mem_limit: 128m
-    pids_limit: 100
+    mem_limit: ${CADDY_MEMORY_LIMIT:-128m}
+    pids_limit: ${CADDY_PIDS_LIMIT:-100}
     logging:
       driver: json-file
       options:
@@ -13,9 +13,12 @@ services:
     security_opt:
       - no-new-privileges:true
     env_file:
-      - ../config.env
+      - .env
     environment:
-      SSO_SHARED_SECRET: ${SSO_SHARED_SECRET:?sso shared secret required}
+      BASE_DOMAIN: ${BASE_DOMAIN:?base domain required}
+      N8N_SSO_SECRET: ${N8N_SSO_SECRET:?n8n sso secret required}
+      VEXA_SSO_SECRET: ${VEXA_SSO_SECRET:?vexa sso secret required}
+      ODOO_SSO_SECRET: ${ODOO_SSO_SECRET:?odoo sso secret required}
     ports:
       - "80:80"
       - "443:443"
@@ -31,12 +34,23 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - proxy
+      - caddy-authentik
+      - caddy-n8n
+      - caddy-vexa
+      - caddy-odoo
 
 networks:
-  proxy:
+  caddy-authentik:
+    external: true
+  caddy-n8n:
+    external: true
+  caddy-vexa:
+    external: true
+  caddy-odoo:
     external: true
 
 volumes:
   caddy_data:
+    name: caddy_caddy_data
   caddy_config:
+    name: caddy_caddy_config
