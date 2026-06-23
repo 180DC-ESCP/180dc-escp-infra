@@ -17,7 +17,13 @@ without storing raw authorization values.
 
 ## Monitoring
 
-Run Uptime Kuma from outside this server so host/network outages are visible.
+Run Uptime Kuma and Prometheus from outside this server so host/network outages
+are visible. The homeserver connects as the restricted `hs-monitor` user and
+uses SSH local forwarding to scrape `prometheus-node-exporter`, which is bound
+to `127.0.0.1:9100` on this server. It also forwards local HTTPS so checks can
+run through Caddy without using the public network path. No monitoring exporter
+port is exposed publicly.
+
 Use HTTP checks for:
 
 - `https://login.180dc-escp.org/-/health/live/`
@@ -85,6 +91,21 @@ ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook ansible/bootstrap.yml \
 ```
 
 After confirming that `deploy` can connect and use `sudo -n`, normal changes are applied by the GitHub workflow on pushes to `main` or by manual dispatch.
+
+## Operator access
+
+Human administration uses the `deploy` user:
+
+```sh
+ssh deploy@46.224.187.189
+sudo -i
+```
+
+Root SSH login is disabled. The `deploy` user has passwordless sudo, so this
+still provides full administrative control while keeping direct root login out
+of the SSH authentication path. The homeserver uses the separate `hs-monitor`
+user, which has no sudo access and is restricted to forwarding
+`127.0.0.1:443` and `127.0.0.1:9100`.
 
 ## Local development
 

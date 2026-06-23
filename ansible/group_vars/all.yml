@@ -4,6 +4,10 @@ platform_admin_email: escp@180dc.org
 host_timezone: Etc/UTC
 swap_size_mb: 2048
 deploy_user: deploy
+hs_monitor_user: hs-monitor
+hs_monitor_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFhsmlaqMSJA3Qb0l5duhJ9UGSuG0l24Djm3dz7NPDb9 plashboard-hs-to-180dc"
+hs_monitor_source_ips:
+  - 138.199.215.195
 ssh_port: "{{ lookup('env', 'DEPLOY_PORT') | default('22', true) | int }}"
 deploy_public_key: "{{ lookup('env', 'DEPLOY_PUBLIC_KEY') }}"
 operator_public_keys:

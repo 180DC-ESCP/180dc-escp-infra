@@ -2,6 +2,7 @@
 enabled = true
 port = {{ ssh_port }}
 backend = systemd
+ignoreip = 127.0.0.1/8 ::1 {{ hs_monitor_source_ips | join(' ') }}
 maxretry = 5
 findtime = 10m
 bantime = 1h

@@ -24,6 +24,17 @@
     update_cache: true
     cache_valid_time: 3600
 
+- name: Install minimal node exporter
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    state: present
+    install_recommends: false
+
+- name: Remove optional node exporter collector bundle
+  ansible.builtin.apt:
+    name: prometheus-node-exporter-collectors
+    state: absent
+
 - name: Set host timezone
   community.general.timezone:
     name: "{{ host_timezone }}"
@@ -42,6 +53,36 @@
     key: "{{ ([deploy_public_key] + operator_public_keys) | reject('equalto', '') | join('\n') }}"
     exclusive: true
 
+- name: Ensure homeserver monitoring user exists
+  ansible.builtin.user:
+    name: "{{ hs_monitor_user }}"
+    shell: /usr/sbin/nologin
+    create_home: true
+    system: true
+
+- name: Manage homeserver monitoring SSH key
+  ansible.posix.authorized_key:
+    user: "{{ hs_monitor_user }}"
+    key: "{{ hs_monitor_public_key }}"
+    key_options: 'no-agent-forwarding,no-X11-forwarding,no-pty,permitopen="127.0.0.1:443",permitopen="127.0.0.1:9100"'
+    exclusive: true
+
+- name: Bind node exporter to localhost
+  ansible.builtin.copy:
+    dest: /etc/default/prometheus-node-exporter
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      ARGS="--web.listen-address=127.0.0.1:9100 --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/credentials/.+|var/lib/docker/.+|var/lib/containers/storage/.+)($|/)"
+  notify: Restart node exporter
+
+- name: Enable node exporter
+  ansible.builtin.systemd_service:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started
+
 - name: Manage deployment sudo policy
   ansible.builtin.copy:
     dest: /etc/sudoers.d/90-deploy
@@ -50,6 +91,15 @@
     group: root
     mode: "0440"
     validate: /usr/sbin/visudo -cf %s
+
+- name: Allow trusted homeserver monitoring SSH source
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ item }}"
+    port: "{{ ssh_port }}"
+    proto: tcp
+    comment: homeserver-monitoring
+  loop: "{{ hs_monitor_source_ips }}"
 
 - name: Allow SSH before enabling firewall
   community.general.ufw:
