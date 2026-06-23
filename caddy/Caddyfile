@@ -100,3 +100,10 @@ odoo.{$BASE_DOMAIN} {
 		header_up X-Authentik-SSO-Secret {$ODOO_SSO_SECRET}
 	}
 }
+
+kuma.{$BASE_DOMAIN} {
+	import access_log kuma
+	import forward_auth
+
+	reverse_proxy uptime-kuma:3001
+}

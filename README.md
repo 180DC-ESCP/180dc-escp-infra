@@ -109,7 +109,7 @@ category. It creates:
 
 Runtime-volume backups include Caddy certificate/config volumes, n8n runtime
 data, the Odoo filestore, Vexa recordings, Vexa TTS voices, and Whisper model
-data.
+data, and Uptime Kuma state.
 
 ```sh
 systemctl status 180dc-backup.timer

@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/ansible.cfg
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.3
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --disable-pip-version-check ansible-core==2.19.4 ansible-lint==25.11.1
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Validate source syntax
+        run: |
+          set -euo pipefail
+          for file in scripts/*.sh backups/*.sh; do bash -n "$file"; done
+          python -m compileall -q authentik vexa odoo/addons/student_society
+          node --check n8n/authentik-sso-hook.js
+          ruby -e 'require "yaml"; Dir["ansible/**/*.yml"].each { |path| YAML.load_file(path) }'
+          ansible-playbook ansible/site.yml --syntax-check
+          ansible-lint ansible
+
+      - name: Validate Compose files
+        run: bash scripts/validate-compose.sh
+
+      - name: Validate image references
+        run: bash scripts/validate-images.sh

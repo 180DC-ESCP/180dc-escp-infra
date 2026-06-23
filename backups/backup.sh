@@ -127,6 +127,7 @@ backup_docker_logs() {
     vexa-sso
     vexa-whisper
     odoo
+    uptime-kuma
   )
 
   scratch="$(mktemp -d)"
@@ -169,6 +170,7 @@ backup_volume odoo_odoo-web-data odoo_filestore
 backup_volume vexa_recordings vexa_recordings
 backup_volume vexa_tts_voices vexa_tts_voices
 backup_volume vexa_whisper_data vexa_whisper_data
+backup_volume uptime_kuma_data uptime_kuma_data
 backup_docker_logs
 
 # Custom-format dumps supersede legacy compressed SQL snapshots.

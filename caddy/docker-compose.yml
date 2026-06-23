@@ -38,6 +38,7 @@ services:
       - caddy-n8n
       - caddy-vexa
       - caddy-odoo
+      - caddy-kuma
 
 networks:
   caddy-authentik:
@@ -47,6 +48,8 @@ networks:
   caddy-vexa:
     external: true
   caddy-odoo:
+    external: true
+  caddy-kuma:
     external: true
 
 volumes:
