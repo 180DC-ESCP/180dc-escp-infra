@@ -150,20 +150,6 @@
   changed_when: false
   no_log: true
 
-- name: Inspect Vexa Whisper container ownership
-  community.docker.docker_container_info:
-    name: vexa-whisper
-  register: services_vexa_whisper_container
-
-- name: Remove legacy Vexa Whisper container
-  community.docker.docker_container:
-    name: vexa-whisper
-    state: absent
-    force_kill: true
-  when:
-    - services_vexa_whisper_container.exists
-    - "'/opt/180dc/apps/vexa/' in (services_vexa_whisper_container.container.Config.Labels['com.docker.compose.project.config_files'] | default(''))"
-
 - name: Start core Compose projects
   community.docker.docker_compose_v2:
     project_src: "{{ services_root }}/{{ item }}"
@@ -251,18 +237,3 @@
   ansible.builtin.command: docker image prune --force
   register: services_image_prune
   changed_when: "'Total reclaimed space: 0B' not in services_image_prune.stdout"
-
-- name: Remove unused anonymous Docker volumes
-  ansible.builtin.shell: |
-    set -euo pipefail
-    docker volume ls -q | while read -r volume; do
-      if [[ "$volume" =~ ^[0-9a-f]{64}$ ]] && [ -z "$(docker ps -a --filter "volume=$volume" -q)" ]; then
-        docker volume rm "$volume"
-      fi
-    done
-  args:
-    executable: /bin/bash
-  register: services_anonymous_volume_prune
-  changed_when: services_anonymous_volume_prune.stdout | length > 0
-  tags:
-    - skip_ansible_lint
