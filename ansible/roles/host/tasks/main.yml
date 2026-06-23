@@ -74,8 +74,22 @@
     group: root
     mode: "0644"
     content: |
-      ARGS="--web.listen-address=127.0.0.1:9100 --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/credentials/.+|var/lib/docker/.+|var/lib/containers/storage/.+)($|/)"
+      ARGS="{{ node_exporter_args | join(' ') }}"
   notify: Restart node exporter
+  vars:
+    node_exporter_args:
+      - --web.listen-address=127.0.0.1:9100
+      - >-
+        --collector.filesystem.mount-points-exclude=^/({{
+        node_exporter_excluded_mounts | join('|')
+        }})($|/)
+    node_exporter_excluded_mounts:
+      - dev
+      - proc
+      - sys
+      - run/credentials/.+
+      - var/lib/docker/.+
+      - var/lib/containers/storage/.+
 
 - name: Enable node exporter
   ansible.builtin.systemd_service:
