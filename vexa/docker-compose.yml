@@ -31,7 +31,7 @@ services:
       - vexa-internal
 
   whisper:
-    image: ${WHISPER_IMAGE:-hwdsl2/whisper-server@sha256:008ef78e8164be1a52d3c16a0a4702af4190bc355c057e481ceb35af739ab184}
+    image: ${WHISPER_IMAGE:-hwdsl2/whisper-server@sha256:fb01dd6bbb1c6ea962649b85fd3c591bd1b95bc75ae147ba12c735bf1e6681d9}
     container_name: vexa-whisper
     restart: unless-stopped
     mem_limit: ${VEXA_WHISPER_MEMORY_LIMIT:-1g}
