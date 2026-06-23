@@ -1,5 +1,5 @@
 [Unit]
-Description=Run 180DC database backup daily
+Description=Run 180DC backup daily
 
 [Timer]
 OnCalendar=*-*-* {{ '%02d' | format(backup_hour_utc) }}:00:00 UTC

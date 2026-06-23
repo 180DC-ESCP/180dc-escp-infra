@@ -8,6 +8,36 @@ The repository manages host packages, Docker, the deployment user, SSH policy, U
 
 Runtime state is server-local: PostgreSQL data, Docker volumes, Caddy certificates, sessions, logs, recordings, caches, and generated application files.
 
+Caddy writes per-host JSON access logs under its persistent `/data` volume,
+for example `/data/access-odoo.log` and `/data/access-login.log`. These logs
+are rotated at 25 MiB, retain up to seven rolled files, and keep rolled files
+for seven days. OAuth query parameters such as `code`, `state`, and
+`session_state` are hashed before logging so redirect loops can be correlated
+without storing raw authorization values.
+
+## Monitoring
+
+Run Uptime Kuma and Prometheus from outside this server so host/network outages
+are visible. The homeserver connects as the restricted `hs-monitor` user and
+uses SSH local forwarding to scrape `prometheus-node-exporter`, which is bound
+to `127.0.0.1:9100` on this server. It also forwards local HTTPS so checks can
+run through Caddy without using the public network path. No monitoring exporter
+port is exposed publicly.
+
+Use HTTP checks for:
+
+- `https://login.180dc-escp.org/-/health/live/`
+- `https://n8n.180dc-escp.org/`
+- `https://odoo.180dc-escp.org/web/login`
+- `https://vexa.180dc-escp.org/`
+- `https://vexa-api.180dc-escp.org/docs`
+
+Alert on two consecutive failures, HTTP 5xx, redirect count above eight, TLS
+expiry below 14 days, and sustained response time above five seconds. Also add
+a TCP check for SSH on the production host. Avoid mounting the Docker socket
+into an off-box monitor; container-level state should be checked by deployment
+verification and server-local diagnostics.
+
 ## Production inputs
 
 Configure the GitHub `production` environment with these variables:
@@ -62,6 +92,21 @@ ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook ansible/bootstrap.yml \
 
 After confirming that `deploy` can connect and use `sudo -n`, normal changes are applied by the GitHub workflow on pushes to `main` or by manual dispatch.
 
+## Operator access
+
+Human administration uses the `deploy` user:
+
+```sh
+ssh deploy@46.224.187.189
+sudo -i
+```
+
+Root SSH login is disabled. The `deploy` user has passwordless sudo, so this
+still provides full administrative control while keeping direct root login out
+of the SSH authentication path. The homeserver uses the separate `hs-monitor`
+user, which has no sudo access and is restricted to forwarding
+`127.0.0.1:443` and `127.0.0.1:9100`.
+
 ## Local development
 
 ```sh
@@ -76,7 +121,16 @@ Local development exposes Authentik on port 9000, n8n on 5678, and Odoo on 8069.
 
 ## Backups
 
-`180dc-backup.timer` creates validated PostgreSQL custom-format dumps daily at 03:00 UTC and retains seven dumps per database:
+`180dc-backup.timer` runs daily at 03:00 UTC and retains seven backup sets per
+category. It creates:
+
+- validated PostgreSQL custom-format dumps under `/opt/180dc/backups/databases`
+- validated runtime-volume archives under `/opt/180dc/backups/volumes`
+- compressed Docker log snapshots under `/opt/180dc/backups/logs`
+
+Runtime-volume backups include Caddy certificate/config volumes, n8n runtime
+data, the Odoo filestore, Vexa recordings, Vexa TTS voices, and Whisper model
+data, and Uptime Kuma state.
 
 ```sh
 systemctl status 180dc-backup.timer
@@ -84,4 +138,5 @@ sudo /opt/180dc/backups/backup.sh
 sudo /opt/180dc/backups/restore.sh n8n n8n_YYYYMMDD_HHMMSS.dump
 ```
 
-Backups are local and database-only. They do not protect Docker volumes, Odoo attachments, recordings, certificates, or the complete server from host loss.
+Backups are local to the production server. They protect against application
+mistakes and failed deploys, but not total host loss.

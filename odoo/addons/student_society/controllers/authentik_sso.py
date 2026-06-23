@@ -31,6 +31,13 @@ def _safe_redirect(target):
     return "/odoo"
 
 
+def _expanded_groups(groups):
+    implied_groups = getattr(groups, "all_implied_ids", None)
+    if implied_groups is None:
+        implied_groups = getattr(groups, "trans_implied_ids", groups.env["res.groups"])
+    return groups | implied_groups
+
+
 class AuthentikSSO(http.Controller):
     @http.route("/auth/authentik/login", type="http", auth="none", readonly=False)
     def login(self, redirect=None, **kwargs):
@@ -111,10 +118,10 @@ class AuthentikSSO(http.Controller):
                 user.env.ref("student_society.group_society_admin").id,
             ]
         )
-        managed_admin_group_ids = set((admin_groups | admin_groups.trans_implied_ids).ids)
-        desired_groups = member_groups | member_groups.trans_implied_ids
+        managed_admin_group_ids = set(_expanded_groups(admin_groups).ids)
+        desired_groups = _expanded_groups(member_groups)
         if email == PLATFORM_ADMIN_EMAIL:
-            desired_groups |= admin_groups | admin_groups.trans_implied_ids
+            desired_groups |= _expanded_groups(admin_groups)
         group_ids = (set(user.group_ids.ids) - managed_admin_group_ids).union(desired_groups.ids)
         values = {"email": email, "group_ids": [(6, 0, list(group_ids))]}
         if name and user.name != name:

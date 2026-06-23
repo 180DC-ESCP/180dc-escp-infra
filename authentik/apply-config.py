@@ -114,6 +114,7 @@ invalidation_flow = flow("default-provider-invalidation-flow")
 apps = [
     ("n8n", "n8n", f"https://n8n.{BASE_DOMAIN}"),
     ("Odoo", "odoo", f"https://odoo.{BASE_DOMAIN}"),
+    ("Uptime Kuma", "uptime-kuma", f"https://kuma.{BASE_DOMAIN}"),
 ]
 obsolete_app_slugs = {"bimi", "n8n-hooks", "odoo-retired", "vexa-api-admin"}
 obsolete_provider_names = {"BIMI", "n8n hooks", "Odoo retired", "Vexa API Admin"}

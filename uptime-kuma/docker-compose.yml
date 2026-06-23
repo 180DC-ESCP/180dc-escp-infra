@@ -1,0 +1,35 @@
+services:
+  uptime-kuma:
+    image: ${UPTIME_KUMA_IMAGE:-louislam/uptime-kuma:2}
+    container_name: uptime-kuma
+    restart: unless-stopped
+    mem_limit: ${UPTIME_KUMA_MEMORY_LIMIT:-384m}
+    pids_limit: ${UPTIME_KUMA_PIDS_LIMIT:-100}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      UMASK: "0022"
+    volumes:
+      - uptime_kuma_data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - caddy-kuma
+
+volumes:
+  uptime_kuma_data:
+    name: uptime_kuma_data
+
+networks:
+  caddy-kuma:
+    external: true

@@ -4,6 +4,10 @@ platform_admin_email: escp@180dc.org
 host_timezone: Etc/UTC
 swap_size_mb: 2048
 deploy_user: deploy
+hs_monitor_user: hs-monitor
+hs_monitor_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFhsmlaqMSJA3Qb0l5duhJ9UGSuG0l24Djm3dz7NPDb9 plashboard-hs-to-180dc"
+hs_monitor_source_ips:
+  - 138.199.215.195
 ssh_port: "{{ lookup('env', 'DEPLOY_PORT') | default('22', true) | int }}"
 deploy_public_key: "{{ lookup('env', 'DEPLOY_PUBLIC_KEY') }}"
 operator_public_keys:
@@ -30,8 +34,9 @@ images:
   n8n: n8nio/n8n:2.26.4
   odoo: odoo:19.0-20260609
   vexa: vexaai/vexa-lite@sha256:4752bc3cfe4c6a9a334018fe3f7c6a21f56616cd1de370d0c2c9f577206a36ec
-  whisper: hwdsl2/whisper-server@sha256:008ef78e8164be1a52d3c16a0a4702af4190bc355c057e481ceb35af739ab184
+  whisper: hwdsl2/whisper-server@sha256:fb01dd6bbb1c6ea962649b85fd3c591bd1b95bc75ae147ba12c735bf1e6681d9
   vexa_sso: python:3.14.6-alpine
+  uptime_kuma: louislam/uptime-kuma:2
 
 resource_limits:
   caddy: {memory: 128m, pids: 100}
@@ -46,6 +51,7 @@ resource_limits:
   vexa_sso: {memory: 128m, pids: 50}
   odoo_db: {memory: 256m, pids: 100}
   odoo: {memory: 512m, pids: 150}
+  uptime_kuma: {memory: 384m, pids: 100}
 
 database:
   authentik: {name: authentik, user: authentik}
@@ -58,6 +64,7 @@ caddy_networks:
   - caddy-n8n
   - caddy-vexa
   - caddy-odoo
+  - caddy-kuma
 
 expected_caddy_network:
   authentik-server: caddy-authentik
@@ -65,10 +72,12 @@ expected_caddy_network:
   vexa-lite: caddy-vexa
   vexa-sso: caddy-vexa
   odoo: caddy-odoo
+  uptime-kuma: caddy-kuma
 
 service_names:
   - authentik
   - n8n
   - vexa
   - odoo
+  - uptime-kuma
   - caddy

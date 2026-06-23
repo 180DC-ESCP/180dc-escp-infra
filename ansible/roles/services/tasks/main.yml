@@ -164,6 +164,7 @@
     - authentik
     - n8n
     - vexa
+    - uptime-kuma
   no_log: true
 
 - name: Reconcile Authentik configuration

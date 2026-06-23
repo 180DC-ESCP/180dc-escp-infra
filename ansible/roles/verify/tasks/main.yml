@@ -14,6 +14,7 @@
     - vexa-db
     - odoo
     - odoo-db
+    - uptime-kuma
     - caddy
   register: verify_managed_containers
   no_log: true
@@ -57,7 +58,7 @@
     fail_msg: "Container {{ item.item }} has an invalid Caddy-facing network assignment."
   loop: >-
     {{ verify_managed_containers.results
-       | selectattr('item', 'in', ['n8n', 'vexa-lite', 'vexa-sso', 'odoo', 'authentik-server'])
+       | selectattr('item', 'in', ['n8n', 'vexa-lite', 'vexa-sso', 'odoo', 'uptime-kuma', 'authentik-server'])
        | list }}
   loop_control:
     label: "{{ item.item }}"
@@ -93,8 +94,9 @@
     - docker exec odoo curl -fsS http://127.0.0.1:8069/web/login
     - docker exec vexa-lite curl -fsS http://127.0.0.1:8056/docs
     - docker exec vexa-sso python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"
+    - docker exec uptime-kuma node -e "fetch('http://127.0.0.1:3001').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
     - docker exec caddy wget -q --spider http://authentik-server:9000/-/health/live/
-    - docker exec caddy wget -q --spider http://127.0.0.1:2019/config/
+    - docker exec caddy wget -q -O /dev/null http://127.0.0.1:2019/config/
   changed_when: false
 
 - name: Verify origin routes through Caddy
@@ -110,15 +112,59 @@
     - {host: "vexa.{{ base_domain }}", path: /, code: "302"}
     - {host: "vexa-api.{{ base_domain }}", path: /admin/users, code: "403"}
     - {host: "odoo.{{ base_domain }}", path: /, code: "302"}
+    - {host: "kuma.{{ base_domain }}", path: /, code: "302"}
   register: verify_origin_routes
   changed_when: false
   failed_when: verify_origin_routes.stdout != item.code
   tags:
     - skip_ansible_lint
 
+- name: Verify managed containers use services root Compose files
+  ansible.builtin.assert:
+    that:
+      - item.container.Config.Labels['com.docker.compose.project.config_files'] is defined
+      - item.container.Config.Labels['com.docker.compose.project.config_files'] is search(services_root)
+      - item.container.Config.Labels['com.docker.compose.project.config_files'] is not search('/opt/180dc/apps/')
+    fail_msg: "Container {{ item.item }} is not managed from {{ services_root }}."
+  loop: "{{ verify_managed_containers.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  no_log: true
+
 - name: Verify backup timer is active
   ansible.builtin.command: systemctl is-active --quiet 180dc-backup.timer
   changed_when: false
+  tags:
+    - skip_ansible_lint
+
+- name: Verify node exporter is local only
+  ansible.builtin.shell: |
+    set -euo pipefail
+    systemctl is-active --quiet prometheus-node-exporter
+    ss -ltn | awk '$4 == "127.0.0.1:9100" {found=1} END {exit found ? 0 : 1}'
+    curl -fsS --max-time 5 http://127.0.0.1:9100/metrics >/dev/null
+  args:
+    executable: /bin/bash
+  changed_when: false
+  tags:
+    - skip_ansible_lint
+
+- name: Verify recent local backup coverage
+  ansible.builtin.shell: |
+    set -euo pipefail
+    for spec in \
+      "{{ backup_root }}/databases/*.dump" \
+      "{{ backup_root }}/volumes/*.tar.gz" \
+      "{{ backup_root }}/logs/*.tar.gz"; do
+      if ! find ${spec%/*} -maxdepth 1 -type f -name "${spec##*/}" -mmin -1800 | grep -q .; then
+        echo "No recent backup matching $spec" >&2
+        exit 1
+      fi
+    done
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when: backup_existing_database_count | default(0) | int == 4
   tags:
     - skip_ansible_lint
 

@@ -28,7 +28,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:2019/config/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/ || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -38,6 +38,7 @@ services:
       - caddy-n8n
       - caddy-vexa
       - caddy-odoo
+      - caddy-kuma
 
 networks:
   caddy-authentik:
@@ -47,6 +48,8 @@ networks:
   caddy-vexa:
     external: true
   caddy-odoo:
+    external: true
+  caddy-kuma:
     external: true
 
 volumes:

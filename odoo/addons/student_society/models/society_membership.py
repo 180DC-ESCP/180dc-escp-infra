@@ -6,6 +6,13 @@ from odoo import api, exceptions, fields, models
 PLATFORM_ADMIN_EMAIL = os.environ.get("PLATFORM_ADMIN_EMAIL", "escp@180dc.org").strip().lower()
 
 
+def _expanded_groups(groups):
+    implied_groups = getattr(groups, "all_implied_ids", None)
+    if implied_groups is None:
+        implied_groups = getattr(groups, "trans_implied_ids", groups.env["res.groups"])
+    return groups | implied_groups
+
+
 class SocietyRole(models.Model):
     _name = "society.role"
     _description = "Society Role"
@@ -134,14 +141,14 @@ class SocietyMemberAssignment(models.Model):
         Role = self.env["society.role"].sudo()
         managed_groups = Role.search([]).management_group_id
         managed_groups |= self.env["res.groups"].sudo().browse(additional_managed_group_ids or [])
-        managed_group_ids = set((managed_groups | managed_groups.trans_implied_ids).ids)
+        managed_group_ids = set(_expanded_groups(managed_groups).ids)
         baseline_groups = self.env["res.groups"].sudo().browse(
             [
                 self.env.ref("base.group_user").id,
                 self.env.ref("student_society.group_society_member").id,
             ]
         )
-        managed_group_ids -= set((baseline_groups | baseline_groups.trans_implied_ids).ids)
+        managed_group_ids -= set(_expanded_groups(baseline_groups).ids)
         if not managed_group_ids:
             return
 
@@ -160,7 +167,7 @@ class SocietyMemberAssignment(models.Model):
             desired_groups = assignments.role_id.management_group_id
             if (user.email or user.login or "").strip().lower() == PLATFORM_ADMIN_EMAIL:
                 desired_groups |= self.env.ref("student_society.group_society_admin")
-            desired_group_ids = set((desired_groups | desired_groups.trans_implied_ids).ids)
+            desired_group_ids = set(_expanded_groups(desired_groups).ids)
             reconciled_group_ids = (set(user.group_ids.ids) - managed_group_ids) | desired_group_ids
             if reconciled_group_ids != set(user.group_ids.ids):
                 user.write({"group_ids": [(6, 0, list(reconciled_group_ids))]})

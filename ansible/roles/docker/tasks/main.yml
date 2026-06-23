@@ -15,6 +15,11 @@
     group: root
     mode: "0644"
 
+- name: Remove legacy Docker apt source
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/docker.list
+    state: absent
+
 - name: Configure Docker repository
   ansible.builtin.deb822_repository:
     name: docker
