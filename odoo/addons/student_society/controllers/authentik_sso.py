@@ -99,7 +99,23 @@ class AuthentikSSO(http.Controller):
         return User.create(values)
 
     def _sync_user(self, user, email, name):
-        group_ids = set(user.group_ids.ids).union(self._group_ids(user.env, email))
+        member_groups = user.env["res.groups"].browse(
+            [
+                user.env.ref("base.group_user").id,
+                user.env.ref("student_society.group_society_member").id,
+            ]
+        )
+        admin_groups = user.env["res.groups"].browse(
+            [
+                user.env.ref("base.group_system").id,
+                user.env.ref("student_society.group_society_admin").id,
+            ]
+        )
+        managed_admin_group_ids = set((admin_groups | admin_groups.trans_implied_ids).ids)
+        desired_groups = member_groups | member_groups.trans_implied_ids
+        if email == PLATFORM_ADMIN_EMAIL:
+            desired_groups |= admin_groups | admin_groups.trans_implied_ids
+        group_ids = (set(user.group_ids.ids) - managed_admin_group_ids).union(desired_groups.ids)
         values = {"email": email, "group_ids": [(6, 0, list(group_ids))]}
         if name and user.name != name:
             values["name"] = name

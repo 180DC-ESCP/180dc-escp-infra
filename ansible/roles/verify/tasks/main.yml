@@ -1,0 +1,140 @@
+---
+- name: Inspect managed containers
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  loop:
+    - authentik-server
+    - authentik-worker
+    - authentik-db
+    - n8n
+    - n8n-db
+    - vexa-lite
+    - vexa-sso
+    - vexa-whisper
+    - vexa-db
+    - odoo
+    - odoo-db
+    - caddy
+  register: verify_managed_containers
+  no_log: true
+
+- name: Require running and healthy containers
+  ansible.builtin.assert:
+    that:
+      - item.exists
+      - item.container.State.Running
+      - item.container.State.Health.Status == 'healthy'
+    fail_msg: "Container {{ item.item }} is not running and healthy."
+  loop: "{{ verify_managed_containers.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  no_log: true
+
+- name: Verify service-specific SSO secrets differ
+  ansible.builtin.assert:
+    that:
+      - production_secrets.sso.n8n != production_secrets.sso.vexa
+      - production_secrets.sso.n8n != production_secrets.sso.odoo
+      - production_secrets.sso.vexa != production_secrets.sso.odoo
+    fail_msg: Each application requires a distinct SSO secret.
+  no_log: true
+
+- name: Verify only Caddy publishes host ports
+  ansible.builtin.assert:
+    that:
+      - item.container.HostConfig.PortBindings | default({}) | length == 0
+    fail_msg: "Container {{ item.item }} unexpectedly publishes a host port."
+  loop: "{{ verify_managed_containers.results | rejectattr('item', 'equalto', 'caddy') | list }}"
+  loop_control:
+    label: "{{ item.item }}"
+  no_log: true
+
+- name: Verify application network isolation
+  ansible.builtin.assert:
+    that:
+      - item.container.NetworkSettings.Networks.keys() | intersect(caddy_networks) | length == 1
+      - expected_caddy_network[item.item] in item.container.NetworkSettings.Networks
+    fail_msg: "Container {{ item.item }} has an invalid Caddy-facing network assignment."
+  loop: >-
+    {{ verify_managed_containers.results
+       | selectattr('item', 'in', ['n8n', 'vexa-lite', 'vexa-sso', 'odoo', 'authentik-server'])
+       | list }}
+  loop_control:
+    label: "{{ item.item }}"
+  no_log: true
+
+- name: Verify services reject another service's SSO secret
+  ansible.builtin.command:
+    cmd: >-
+      docker exec
+      -e TARGET_URL={{ item.url | quote }}
+      -e SECRET_NAME={{ item.secret_variable | quote }}
+      caddy sh -c
+      'eval "SECRET=\${$SECRET_NAME}";
+      test "$(curl -sS -o /dev/null -w "%{http_code}"
+      --header "X-Authentik-SSO-Secret: $SECRET"
+      --header "X-Authentik-Email: {{ platform_admin_email }}"
+      --header "X-Authentik-Name: SSO verification"
+      "$TARGET_URL")" = "403"'
+  loop:
+    - url: http://odoo:8069/auth/authentik/login
+      secret_variable: N8N_SSO_SECRET
+    - url: http://n8n:5678/auth/authentik/login
+      secret_variable: ODOO_SSO_SECRET
+    - url: http://vexa-sso:8080/auth/sso
+      secret_variable: ODOO_SSO_SECRET
+  changed_when: false
+  no_log: true
+
+- name: Verify direct application endpoints
+  ansible.builtin.command: "{{ item }}"
+  loop:
+    - docker exec n8n wget -q --spider http://127.0.0.1:5678/
+    - docker exec odoo curl -fsS http://127.0.0.1:8069/web/login
+    - docker exec vexa-lite curl -fsS http://127.0.0.1:8056/docs
+    - docker exec vexa-sso python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"
+    - docker exec caddy wget -q --spider http://authentik-server:9000/-/health/live/
+    - docker exec caddy wget -q --spider http://127.0.0.1:2019/config/
+  changed_when: false
+
+- name: Verify origin routes through Caddy
+  ansible.builtin.command: >-
+    curl -ksS --connect-timeout 5 --max-time 15
+    --resolve {{ item.host }}:443:127.0.0.1
+    --output /dev/null --write-out %{http_code}
+    https://{{ item.host }}{{ item.path }}
+  loop:
+    - {host: "login.{{ base_domain }}", path: /, code: "302"}
+    - {host: "n8n.{{ base_domain }}", path: /, code: "302"}
+    - {host: "hooks.{{ base_domain }}", path: /webhook/__verify_public_hooks__, code: "404"}
+    - {host: "vexa.{{ base_domain }}", path: /, code: "302"}
+    - {host: "vexa-api.{{ base_domain }}", path: /admin/users, code: "403"}
+    - {host: "odoo.{{ base_domain }}", path: /, code: "302"}
+  register: verify_origin_routes
+  changed_when: false
+  failed_when: verify_origin_routes.stdout != item.code
+  tags:
+    - skip_ansible_lint
+
+- name: Verify backup timer is active
+  ansible.builtin.command: systemctl is-active --quiet 180dc-backup.timer
+  changed_when: false
+  tags:
+    - skip_ansible_lint
+
+- name: Remove legacy deployment directories after successful verification
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ live_root }}/apps"
+    - "{{ live_root }}/authentik"
+    - "{{ live_root }}/caddy"
+    - "{{ live_root }}/config.env"
+    - /opt/180dc-git
+
+- name: Remove obsolete shared proxy network
+  community.docker.docker_network:
+    name: proxy
+    state: absent
+  failed_when: false

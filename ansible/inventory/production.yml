@@ -1,0 +1,6 @@
+all:
+  hosts:
+    production:
+      ansible_host: "{{ lookup('env', 'DEPLOY_HOST') }}"
+      ansible_port: "{{ lookup('env', 'DEPLOY_PORT') | default('22', true) }}"
+      ansible_user: deploy

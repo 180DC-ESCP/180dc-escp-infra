@@ -1,10 +1,10 @@
 services:
   db:
-    image: postgres:18.4-alpine
+    image: ${POSTGRES_IMAGE:-postgres:18.4-alpine}
     container_name: odoo-db
     restart: unless-stopped
-    mem_limit: 256m
-    pids_limit: 100
+    mem_limit: ${ODOO_DB_MEMORY_LIMIT:-256m}
+    pids_limit: ${ODOO_DB_PIDS_LIMIT:-100}
     logging:
       driver: json-file
       options:
@@ -29,11 +29,11 @@ services:
       - odoo-internal
 
   odoo:
-    image: odoo:19.0-20260609
+    image: ${ODOO_IMAGE:-odoo:19.0-20260609}
     container_name: odoo
     restart: unless-stopped
-    mem_limit: 512m
-    pids_limit: 150
+    mem_limit: ${ODOO_MEMORY_LIMIT:-512m}
+    pids_limit: ${ODOO_PIDS_LIMIT:-150}
     logging:
       driver: json-file
       options:
@@ -42,7 +42,6 @@ services:
     security_opt:
       - no-new-privileges:true
     env_file:
-      - ../config.env
       - .env
     depends_on:
       db:
@@ -51,7 +50,7 @@ services:
       HOST: db
       USER: ${POSTGRES_USER:-odoo}
       PASSWORD: ${POSTGRES_PASSWORD:?database password required}
-      SSO_SHARED_SECRET: ${SSO_SHARED_SECRET:?sso shared secret required}
+      SSO_SHARED_SECRET: ${ODOO_SSO_SECRET:?odoo sso secret required}
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
@@ -72,22 +71,21 @@ services:
       retries: 10
       start_period: 30s
     networks:
-      - proxy
+      - caddy-odoo
       - odoo-internal
 
   init:
-    image: odoo:19.0-20260609
+    image: ${ODOO_IMAGE:-odoo:19.0-20260609}
     profiles:
       - init
-    mem_limit: 512m
-    pids_limit: 150
+    mem_limit: ${ODOO_MEMORY_LIMIT:-512m}
+    pids_limit: ${ODOO_PIDS_LIMIT:-150}
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
     env_file:
-      - ../config.env
       - .env
     depends_on:
       db:
@@ -96,7 +94,7 @@ services:
       HOST: db
       USER: ${POSTGRES_USER:-odoo}
       PASSWORD: ${POSTGRES_PASSWORD:?database password required}
-      SSO_SHARED_SECRET: ${SSO_SHARED_SECRET:?sso shared secret required}
+      SSO_SHARED_SECRET: ${ODOO_SSO_SECRET:?odoo sso secret required}
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
@@ -118,10 +116,12 @@ services:
 
 volumes:
   odoo-db-data:
+    name: odoo_odoo-db-data
   odoo-web-data:
+    name: odoo_odoo-web-data
 
 networks:
-  proxy:
+  caddy-odoo:
     external: true
   odoo-internal:
     driver: bridge

@@ -1,10 +1,10 @@
 services:
   postgres:
-    image: postgres:18.4-alpine
+    image: ${POSTGRES_IMAGE:-postgres:18.4-alpine}
     container_name: n8n-db
     restart: unless-stopped
-    mem_limit: 256m
-    pids_limit: 100
+    mem_limit: ${N8N_DB_MEMORY_LIMIT:-256m}
+    pids_limit: ${N8N_DB_PIDS_LIMIT:-100}
     logging:
       driver: json-file
       options:
@@ -17,7 +17,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     env_file:
-      - ../config.env
       - .env
     volumes:
       - postgres_data:/var/lib/postgresql
@@ -30,11 +29,11 @@ services:
       - n8n-internal
 
   n8n:
-    image: n8nio/n8n:${N8N_IMAGE_TAG:-2.26.4}
+    image: ${N8N_IMAGE:-n8nio/n8n:2.26.4}
     container_name: n8n
     restart: unless-stopped
-    mem_limit: 700m
-    pids_limit: 200
+    mem_limit: ${N8N_MEMORY_LIMIT:-700m}
+    pids_limit: ${N8N_PIDS_LIMIT:-200}
     logging:
       driver: json-file
       options:
@@ -70,8 +69,8 @@ services:
       - EXTERNAL_HOOK_FILES=/home/node/.n8n/authentik-sso-hook.js
       - AUTHENTIK_ALLOWED_EMAIL_DOMAIN=${AUTHENTIK_ALLOWED_EMAIL_DOMAIN}
       - PLATFORM_ADMIN_EMAIL=${PLATFORM_ADMIN_EMAIL}
+      - SSO_SHARED_SECRET=${N8N_SSO_SECRET:?n8n sso secret required}
     env_file:
-      - ../config.env
       - .env
     volumes:
       - n8n_data:/home/node/.n8n
@@ -86,15 +85,17 @@ services:
       retries: 10
       start_period: 30s
     networks:
-      - proxy
+      - caddy-n8n
       - n8n-internal
 
 volumes:
   postgres_data:
+    name: n8n_postgres_data
   n8n_data:
+    name: n8n_n8n_data
 
 networks:
-  proxy:
+  caddy-n8n:
     external: true
   n8n-internal:
     driver: bridge

@@ -1,0 +1,239 @@
+---
+- name: Create managed service directories
+  ansible.builtin.file:
+    path: "{{ services_root }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ service_names }}"
+
+- name: Create Authentik runtime directories
+  ansible.builtin.file:
+    path: "{{ services_root }}/authentik/{{ item.name }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {name: data, owner: "1000", group: "1000", mode: "0775"}
+    - {name: certs, owner: "1000", group: "1000", mode: "0755"}
+    - {name: custom-templates, owner: root, group: root, mode: "0755"}
+
+- name: Inspect legacy Authentik runtime directories
+  ansible.builtin.stat:
+    path: "{{ live_root }}/authentik/{{ item }}"
+  loop:
+    - data
+    - certs
+    - custom-templates
+  register: services_legacy_authentik_runtime
+
+- name: Migrate legacy Authentik runtime data
+  ansible.builtin.copy:
+    src: "{{ item.stat.path }}/"
+    dest: "{{ services_root }}/authentik/{{ item.item }}/"
+    remote_src: true
+    owner: root
+    group: root
+    mode: preserve
+  loop: "{{ services_legacy_authentik_runtime.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stat.exists
+
+- name: Inspect Authentik database volume
+  community.docker.docker_volume_info:
+    name: authentik_database
+  register: services_authentik_volume
+
+- name: Set first-install state and ephemeral bootstrap password
+  ansible.builtin.set_fact:
+    services_authentik_first_install: "{{ not services_authentik_volume.exists }}"
+    services_authentik_bootstrap_password: "{{ lookup('password', '/dev/null', length=48, chars=['ascii_letters', 'digits']) }}"
+  no_log: true
+
+- name: Copy Compose definitions
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../{{ item }}/docker-compose.yml"
+    dest: "{{ services_root }}/{{ item }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ service_names }}"
+
+- name: Copy Caddy configuration
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../caddy/Caddyfile"
+    dest: "{{ services_root }}/caddy/Caddyfile"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Caddy
+
+- name: Copy Authentik reconciliation
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../authentik/apply-config.py"
+    dest: "{{ services_root }}/authentik/apply-config.py"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Copy n8n SSO hook
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../n8n/authentik-sso-hook.js"
+    dest: "{{ services_root }}/n8n/authentik-sso-hook.js"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart n8n
+
+- name: Copy Vexa SSO bridge
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../vexa/sso-bridge.py"
+    dest: "{{ services_root }}/vexa/sso-bridge.py"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Vexa SSO
+
+- name: Synchronize Odoo configuration
+  ansible.posix.synchronize:
+    src: "{{ playbook_dir }}/../odoo/config/"
+    dest: "{{ services_root }}/odoo/config/"
+    delete: true
+    owner: false
+    group: false
+    dest_port: "{{ ssh_port | int }}"
+    rsync_path: sudo rsync
+  notify: Upgrade Odoo module
+
+- name: Synchronize Odoo addons
+  ansible.posix.synchronize:
+    src: "{{ playbook_dir }}/../odoo/addons/"
+    dest: "{{ services_root }}/odoo/addons/"
+    delete: true
+    owner: false
+    group: false
+    dest_port: "{{ ssh_port | int }}"
+    rsync_path: sudo rsync
+    rsync_opts:
+      - --exclude=__pycache__/
+      - --exclude=*.pyc
+  notify: Upgrade Odoo module
+
+- name: Render service environments
+  ansible.builtin.template:
+    src: "{{ item }}.env.j2"
+    dest: "{{ services_root }}/{{ item }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ service_names }}"
+  no_log: true
+
+- name: Validate Compose definitions
+  ansible.builtin.command:
+    cmd: docker compose --env-file .env config --quiet
+    chdir: "{{ services_root }}/{{ item }}"
+  loop: "{{ service_names }}"
+  changed_when: false
+  no_log: true
+
+- name: Validate candidate Caddy configuration
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --env-file .env
+      --volume {{ services_root }}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      {{ images.caddy }} caddy validate --config /etc/caddy/Caddyfile
+    chdir: "{{ services_root }}/caddy"
+  changed_when: false
+  no_log: true
+
+- name: Start core Compose projects
+  community.docker.docker_compose_v2:
+    project_src: "{{ services_root }}/{{ item }}"
+    env_files:
+      - .env
+    state: present
+    pull: always
+    remove_orphans: true
+    wait: true
+    wait_timeout: 300
+  loop:
+    - authentik
+    - n8n
+    - vexa
+  no_log: true
+
+- name: Reconcile Authentik configuration
+  ansible.builtin.command:
+    cmd: docker compose --env-file .env exec -T server ak shell
+    chdir: "{{ services_root }}/authentik"
+    stdin: "{{ lookup('file', playbook_dir + '/../authentik/apply-config.py') }}"
+  changed_when: false
+  no_log: true
+
+- name: Start Odoo database
+  community.docker.docker_compose_v2:
+    project_src: "{{ services_root }}/odoo"
+    env_files:
+      - .env
+    services:
+      - db
+    state: present
+    pull: always
+    wait: true
+    wait_timeout: 180
+  no_log: true
+
+- name: Check whether Odoo is initialized
+  ansible.builtin.command:
+    cmd: >-
+      docker exec odoo-db sh -c
+      'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "\dt public.ir_module_module"'
+  register: services_odoo_schema
+  changed_when: false
+  failed_when: false
+
+- name: Initialize Odoo database
+  ansible.builtin.command:
+    cmd: docker compose --env-file .env --profile init run --rm init
+    chdir: "{{ services_root }}/odoo"
+  when: "'ir_module_module' not in services_odoo_schema.stdout"
+  changed_when: true
+  no_log: true
+
+- name: Start Odoo application
+  community.docker.docker_compose_v2:
+    project_src: "{{ services_root }}/odoo"
+    env_files:
+      - .env
+    services:
+      - odoo
+    state: present
+    pull: always
+    remove_orphans: true
+    wait: true
+    wait_timeout: 180
+  no_log: true
+
+- name: Start Caddy
+  community.docker.docker_compose_v2:
+    project_src: "{{ services_root }}/caddy"
+    env_files:
+      - .env
+    state: present
+    pull: always
+    remove_orphans: true
+    wait: true
+    wait_timeout: 120
+  no_log: true
+
+- name: Apply service change handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Remove dangling Docker images
+  ansible.builtin.command: docker image prune --force
+  register: services_image_prune
+  changed_when: "'Total reclaimed space: 0B' not in services_image_prune.stdout"

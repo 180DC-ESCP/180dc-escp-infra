@@ -1,12 +1,10 @@
-name: Deploy homeserver config
+name: Manage production server
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
-  schedule:
-    - cron: "17 3 * * 0"
 
 concurrency:
   group: production-deploy
@@ -15,157 +13,61 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
+    env:
+      ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/ansible.cfg
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.3
 
-      - name: Configure SSH
-        shell: bash
+      - name: Install Ansible
+        run: |
+          python -m pip install --disable-pip-version-check ansible-core==2.19.4 ansible-lint==25.11.1
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Validate repository syntax
         run: |
           set -euo pipefail
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          for file in scripts/*.sh backups/*.sh; do bash -n "$file"; done
+          python -m compileall -q authentik vexa odoo/addons/student_society
+          node --check n8n/authentik-sso-hook.js
+          ansible-lint ansible
 
-      - name: Sync repository to server
-        shell: bash
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "install -m 700 -d /opt/180dc-git/current"
-          rsync -az --delete \
-            --exclude '.git/' \
-            --exclude '.github/' \
-            --exclude '.DS_Store' \
-            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.DEPLOY_PORT }}" \
-            ./ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc-git/current/"
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "chown -R root:root /opt/180dc-git/current"
-
-      - name: Write server-only secrets
-        shell: bash
+      - name: Configure deployment inputs
         env:
-          AUTHENTIK_ENV_B64: ${{ secrets.AUTHENTIK_ENV_B64 }}
-          N8N_ENV_B64: ${{ secrets.N8N_ENV_B64 }}
-          VEXA_ENV_B64: ${{ secrets.VEXA_ENV_B64 }}
-          ODOO_ENV_B64: ${{ secrets.ODOO_ENV_B64 }}
-          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
-          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          PRODUCTION_SECRETS: ${{ secrets.PRODUCTION_SECRETS }}
         run: |
           set -euo pipefail
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_PORT"
+          test -n "$DEPLOY_SSH_KEY"
+          test -n "$DEPLOY_KNOWN_HOSTS"
+          test -n "$PRODUCTION_SECRETS"
+          PRODUCTION_SECRETS_FILE="$RUNNER_TEMP/production-secrets.yml"
+          echo "PRODUCTION_SECRETS_FILE=$PRODUCTION_SECRETS_FILE" >> "$GITHUB_ENV"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          printf '%s\n' "$PRODUCTION_SECRETS" > "$PRODUCTION_SECRETS_FILE"
+          chmod 600 "$PRODUCTION_SECRETS_FILE"
+          ssh-keygen -y -f ~/.ssh/deploy_key > ~/.ssh/deploy_key.pub
+          echo "DEPLOY_PUBLIC_KEY=$(cat ~/.ssh/deploy_key.pub)" >> "$GITHUB_ENV"
 
-          missing=0
-          require_secret() {
-            local name="$1"
-            if [ -z "${!name:-}" ]; then
-              echo "Missing required GitHub Actions secret: $name" >&2
-              missing=1
-            fi
-          }
+      - name: Validate playbook syntax
+        run: ansible-playbook ansible/site.yml --syntax-check
 
-          require_secret AUTHENTIK_ENV_B64
-          require_secret N8N_ENV_B64
-          require_secret VEXA_ENV_B64
-          require_secret ODOO_ENV_B64
-          require_secret GOOGLE_OAUTH_CLIENT_ID
-          require_secret GOOGLE_OAUTH_CLIENT_SECRET
+      - name: Apply production configuration
+        run: >-
+          ansible-playbook ansible/site.yml
+          --private-key ~/.ssh/deploy_key
 
-          if [ "$missing" -ne 0 ]; then
-            exit 1
-          fi
-
-          SSO_SHARED_SECRET="$(openssl rand -hex 32)"
-
-          authentik_env="$(mktemp)"
-          n8n_env="$(mktemp)"
-          vexa_env="$(mktemp)"
-          odoo_env="$(mktemp)"
-          caddy_env="$(mktemp)"
-
-          printf '%s' "$AUTHENTIK_ENV_B64" | base64 -d > "$authentik_env"
-          {
-            printf '\nGOOGLE_OAUTH_CLIENT_ID=%s\n' "$GOOGLE_OAUTH_CLIENT_ID"
-            printf 'GOOGLE_OAUTH_CLIENT_SECRET=%s\n' "$GOOGLE_OAUTH_CLIENT_SECRET"
-            printf 'AUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
-            printf 'AUTHENTIK_BASE_URL=https://login.180dc-escp.org\n'
-            printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
-          } >> "$authentik_env"
-
-          printf '%s' "$N8N_ENV_B64" | base64 -d > "$n8n_env"
-          {
-            printf '\nAUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
-            printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
-            printf 'N8N_PROXY_HOPS=1\n'
-            printf 'SSO_SHARED_SECRET=%s\n' "$SSO_SHARED_SECRET"
-          } >> "$n8n_env"
-
-          printf '%s' "$VEXA_ENV_B64" | base64 -d > "$vexa_env"
-          if ! grep -q '^DB_NAME=' "$vexa_env"; then
-            printf '\nDB_NAME=vexa\n' >> "$vexa_env"
-          fi
-          if ! grep -q '^DB_USER=' "$vexa_env"; then
-            printf '\nDB_USER=vexa\n' >> "$vexa_env"
-          fi
-          if ! grep -q '^DB_PASSWORD=' "$vexa_env"; then
-            admin_token="$(grep '^ADMIN_TOKEN=' "$vexa_env" | tail -n 1 | cut -d= -f2- || true)"
-            if [ -z "$admin_token" ]; then
-              echo "VEXA_ENV_B64 must contain DB_PASSWORD or ADMIN_TOKEN" >&2
-              exit 1
-            fi
-            printf '\nDB_PASSWORD=%s\n' "$admin_token" >> "$vexa_env"
-          fi
-          normalized_vexa_env="$(mktemp)"
-          grep -Ev '^(IMAGE_TAG|WHISPER_IMAGE_TAG|TRANSCRIPTION_SERVICE_URL|TRANSCRIPTION_SERVICE_TOKEN|TRANSCRIBER_URL|TRANSCRIBER_API_KEY|OPENAI_API_KEY|SKIP_TRANSCRIPTION_CHECK|WHISPER_MODEL|WHISPER_LANGUAGE|WHISPER_DEVICE|WHISPER_COMPUTE_TYPE|WHISPER_THREADS)=' "$vexa_env" > "$normalized_vexa_env" || true
-          mv "$normalized_vexa_env" "$vexa_env"
-          {
-            printf '\nTRANSCRIPTION_SERVICE_URL=http://whisper:9000/v1/audio/transcriptions\n'
-            printf 'TRANSCRIPTION_SERVICE_TOKEN=local-whisper\n'
-            printf 'TRANSCRIBER_URL=http://whisper:9000/v1/audio/transcriptions\n'
-            printf 'TRANSCRIBER_API_KEY=local-whisper\n'
-            printf 'OPENAI_API_KEY=local-whisper\n'
-            printf 'SKIP_TRANSCRIPTION_CHECK=false\n'
-            printf 'WHISPER_MODEL=base\n'
-            printf 'WHISPER_LANGUAGE=auto\n'
-            printf 'WHISPER_DEVICE=cpu\n'
-            printf 'WHISPER_COMPUTE_TYPE=int8\n'
-            printf 'WHISPER_THREADS=2\n'
-            printf '\nAUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
-            printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
-            printf 'SSO_SHARED_SECRET=%s\n' "$SSO_SHARED_SECRET"
-          } >> "$vexa_env"
-
-          printf '%s' "$ODOO_ENV_B64" | base64 -d > "$odoo_env"
-          {
-            printf '\nAUTHENTIK_ALLOWED_EMAIL_DOMAIN=180dc.org\n'
-            printf 'PLATFORM_ADMIN_EMAIL=escp@180dc.org\n'
-            printf 'SSO_SHARED_SECRET=%s\n' "$SSO_SHARED_SECRET"
-          } >> "$odoo_env"
-
-          printf 'SSO_SHARED_SECRET=%s\n' "$SSO_SHARED_SECRET" > "$caddy_env"
-
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "install -m 700 -d /opt/180dc/authentik /opt/180dc/apps/n8n /opt/180dc/apps/vexa /opt/180dc/apps/odoo /opt/180dc/caddy"
-
-          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$authentik_env" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/authentik/.env"
-          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$n8n_env" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/apps/n8n/.env"
-          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$vexa_env" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/apps/vexa/.env"
-          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$odoo_env" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/apps/odoo/.env"
-          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" "$caddy_env" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/180dc/caddy/.env"
-
-          rm -f "$authentik_env" "$n8n_env" "$vexa_env" "$odoo_env" "$caddy_env"
-
-      - name: Deploy
-        shell: bash
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" \
-            -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "cd /opt/180dc-git/current && ./scripts/deploy.sh"
+      - name: Remove temporary secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key ~/.ssh/deploy_key.pub "$PRODUCTION_SECRETS_FILE"

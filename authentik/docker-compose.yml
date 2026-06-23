@@ -1,10 +1,10 @@
 services:
   postgresql:
-    image: docker.io/library/postgres:18.4-alpine
+    image: ${POSTGRES_IMAGE:-postgres:18.4-alpine}
     container_name: authentik-db
     restart: unless-stopped
-    mem_limit: 400m
-    pids_limit: 150
+    mem_limit: ${AUTHENTIK_DB_MEMORY_LIMIT:-400m}
+    pids_limit: ${AUTHENTIK_DB_PIDS_LIMIT:-150}
     logging:
       driver: json-file
       options:
@@ -30,11 +30,11 @@ services:
       - authentik-internal
 
   server:
-    image: ghcr.io/goauthentik/server:2026.5.3
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server:2026.5.3}
     container_name: authentik-server
     restart: unless-stopped
-    mem_limit: 900m
-    pids_limit: 250
+    mem_limit: ${AUTHENTIK_SERVER_MEMORY_LIMIT:-900m}
+    pids_limit: ${AUTHENTIK_SERVER_PIDS_LIMIT:-250}
     logging:
       driver: json-file
       options:
@@ -44,7 +44,6 @@ services:
       - no-new-privileges:true
     command: server
     env_file:
-      - ../config.env
       - .env
     environment:
       AUTHENTIK_POSTGRESQL__HOST: postgresql
@@ -52,6 +51,12 @@ services:
       AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
       AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
+      BASE_DOMAIN: ${BASE_DOMAIN:?base domain required}
+      AUTHENTIK_ALLOWED_EMAIL_DOMAIN: ${AUTHENTIK_ALLOWED_EMAIL_DOMAIN:?allowed email domain required}
+      AUTHENTIK_BASE_URL: ${AUTHENTIK_BASE_URL:?base URL required}
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:?platform admin required}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:?google client id required}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:?google client secret required}
       AUTHENTIK_ERROR_REPORTING__ENABLED: ${AUTHENTIK_ERROR_REPORTING__ENABLED:-false}
       AUTHENTIK_EMAIL__HOST: ${AUTHENTIK_EMAIL__HOST:-localhost}
       AUTHENTIK_EMAIL__PORT: ${AUTHENTIK_EMAIL__PORT:-25}
@@ -67,15 +72,15 @@ services:
       - ./data:/data
       - ./custom-templates:/templates
     networks:
-      - proxy
+      - caddy-authentik
       - authentik-internal
 
   worker:
-    image: ghcr.io/goauthentik/server:2026.5.3
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server:2026.5.3}
     container_name: authentik-worker
     restart: unless-stopped
-    mem_limit: 600m
-    pids_limit: 250
+    mem_limit: ${AUTHENTIK_WORKER_MEMORY_LIMIT:-600m}
+    pids_limit: ${AUTHENTIK_WORKER_PIDS_LIMIT:-250}
     logging:
       driver: json-file
       options:
@@ -86,7 +91,6 @@ services:
     command: worker
     user: root
     env_file:
-      - ../config.env
       - .env
     environment:
       AUTHENTIK_POSTGRESQL__HOST: postgresql
@@ -94,6 +98,12 @@ services:
       AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
       AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
+      BASE_DOMAIN: ${BASE_DOMAIN:?base domain required}
+      AUTHENTIK_ALLOWED_EMAIL_DOMAIN: ${AUTHENTIK_ALLOWED_EMAIL_DOMAIN:?allowed email domain required}
+      AUTHENTIK_BASE_URL: ${AUTHENTIK_BASE_URL:?base URL required}
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:?platform admin required}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:?google client id required}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:?google client secret required}
       AUTHENTIK_ERROR_REPORTING__ENABLED: ${AUTHENTIK_ERROR_REPORTING__ENABLED:-false}
       AUTHENTIK_EMAIL__HOST: ${AUTHENTIK_EMAIL__HOST:-localhost}
       AUTHENTIK_EMAIL__PORT: ${AUTHENTIK_EMAIL__PORT:-25}
@@ -114,9 +124,10 @@ services:
 
 volumes:
   database:
+    name: authentik_database
 
 networks:
-  proxy:
+  caddy-authentik:
     external: true
   authentik-internal:
     driver: bridge

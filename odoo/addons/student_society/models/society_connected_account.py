@@ -23,7 +23,6 @@ class SocietyConnectedAccount(models.Model):
         selection=[
             ("google", "Google Workspace"),
             ("slack", "Slack"),
-            ("notion", "Notion"),
         ],
         required=True,
         index=True,
@@ -111,7 +110,13 @@ class SocietyConnectedAccount(models.Model):
             stop = self._google_datetime(item.get("end") or {})
             if not start or not stop:
                 continue
-            event = Event.search([("society_google_event_id", "=", item.get("id"))], limit=1)
+            event = Event.search(
+                [
+                    ("society_connected_account_id", "=", self.id),
+                    ("society_google_event_id", "=", item.get("id")),
+                ],
+                limit=1,
+            )
             values = {
                 "name": item.get("summary") or "Google Calendar Event",
                 "start": start,
@@ -119,6 +124,7 @@ class SocietyConnectedAccount(models.Model):
                 "description": item.get("description"),
                 "partner_ids": [(4, self.partner_id.id)],
                 "society_google_event_id": item.get("id"),
+                "society_connected_account_id": self.id,
                 "society_google_synced_at": fields.Datetime.now(),
             }
             if event:
@@ -133,6 +139,9 @@ class SocietyConnectedAccount(models.Model):
         events = Event.search(
             [
                 ("partner_ids", "in", [self.partner_id.id]),
+                "|",
+                ("society_connected_account_id", "=", False),
+                ("society_connected_account_id", "=", self.id),
                 ("start", ">=", fields.Datetime.now() - relativedelta(days=1)),
                 ("start", "<=", fields.Datetime.now() + relativedelta(days=180)),
             ]
@@ -153,6 +162,7 @@ class SocietyConnectedAccount(models.Model):
             event.write(
                 {
                     "society_google_event_id": response.get("id") or event.society_google_event_id,
+                    "society_connected_account_id": self.id,
                     "society_google_synced_at": fields.Datetime.now(),
                 }
             )

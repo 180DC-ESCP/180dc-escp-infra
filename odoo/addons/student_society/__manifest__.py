@@ -14,6 +14,7 @@
     "data": [
         "security/security.xml",
         "security/ir.model.access.csv",
+        "data/ir_cron.xml",
         "views/res_partner_views.xml",
         "views/society_membership_views.xml",
         "views/society_recruitment_views.xml",

@@ -24,7 +24,7 @@ n8n.{$BASE_DOMAIN} {
 	redir @needs_n8n_sso /auth/authentik/login 302
 
 	reverse_proxy n8n:5678 {
-		header_up X-Authentik-SSO-Secret {$SSO_SHARED_SECRET}
+		header_up X-Authentik-SSO-Secret {$N8N_SSO_SECRET}
 	}
 }
 
@@ -50,7 +50,7 @@ vexa.{$BASE_DOMAIN} {
 	@sso path /login /auth/sso /api/auth/logout
 	handle @sso {
 		reverse_proxy vexa-sso:8080 {
-			header_up X-Authentik-SSO-Secret {$SSO_SHARED_SECRET}
+			header_up X-Authentik-SSO-Secret {$VEXA_SSO_SECRET}
 		}
 	}
 
@@ -70,6 +70,6 @@ odoo.{$BASE_DOMAIN} {
 	redir @signin /auth/authentik/login 302
 
 	reverse_proxy odoo:8069 {
-		header_up X-Authentik-SSO-Secret {$SSO_SHARED_SECRET}
+		header_up X-Authentik-SSO-Secret {$ODOO_SSO_SECRET}
 	}
 }

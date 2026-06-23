@@ -1,0 +1,114 @@
+---
+- name: Create backup directory
+  ansible.builtin.file:
+    path: "{{ backup_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Find legacy heavyweight migration backups
+  ansible.builtin.find:
+    paths: "{{ backup_root }}"
+    patterns:
+      - postgres18-migration-*
+    file_type: directory
+  register: backup_legacy_migration_artifacts
+
+- name: Remove legacy heavyweight migration backups
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ backup_legacy_migration_artifacts.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Remove legacy migration marker
+  ansible.builtin.file:
+    path: "{{ backup_root }}/latest-postgres18-migration.txt"
+    state: absent
+
+- name: Install backup utility
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../backups/backup.sh"
+    dest: "{{ backup_root }}/backup.sh"
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Install restore utility
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../backups/restore.sh"
+    dest: "{{ backup_root }}/restore.sh"
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Render backup database configuration
+  ansible.builtin.template:
+    src: database.env.j2
+    dest: "{{ backup_root }}/database.env"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Inspect managed database containers
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  loop:
+    - authentik-db
+    - n8n-db
+    - vexa-db
+    - odoo-db
+  register: backup_managed_databases
+
+- name: Count existing and running databases
+  ansible.builtin.set_fact:
+    backup_existing_database_count: "{{ backup_managed_databases.results | selectattr('exists') | list | length }}"
+    backup_running_database_count: >-
+      {{ backup_managed_databases.results
+         | selectattr('exists')
+         | selectattr('container.State.Running', 'defined')
+         | selectattr('container.State.Running', 'equalto', true)
+         | list | length }}
+
+- name: Require a complete database set on established installations
+  ansible.builtin.assert:
+    that:
+      - backup_existing_database_count | int in [0, 4]
+      - backup_existing_database_count | int == 0 or backup_running_database_count | int == 4
+    fail_msg: Existing deployment has missing or stopped database containers; refusing an unsafe deployment.
+
+- name: Create pre-deployment database backup
+  ansible.builtin.command: "{{ backup_root }}/backup.sh"
+  environment:
+    RETENTION_COUNT: "{{ backup_retention_count | string }}"
+  when: backup_existing_database_count | int == 4
+  changed_when: false
+
+- name: Install backup systemd service
+  ansible.builtin.template:
+    src: 180dc-backup.service.j2
+    dest: /etc/systemd/system/180dc-backup.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Install backup systemd timer
+  ansible.builtin.template:
+    src: 180dc-backup.timer.j2
+    dest: /etc/systemd/system/180dc-backup.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Apply systemd changes before enabling timer
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable daily backup timer
+  ansible.builtin.systemd_service:
+    name: 180dc-backup.timer
+    enabled: true
+    state: started

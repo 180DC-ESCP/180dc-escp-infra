@@ -114,6 +114,9 @@ ensure_envs() {
     env_set "$config_file" SSO_SHARED_SECRET "$sso_shared_secret"
   fi
 
+  env_set "$ROOT/n8n/.env" N8N_SSO_SECRET "$sso_shared_secret"
+  env_set "$ROOT/odoo/.env" ODOO_SSO_SECRET "$sso_shared_secret"
+
   local base_domain
   base_domain="$(env_get "$config_file" BASE_DOMAIN)"
   local allowed_domain
@@ -256,7 +259,9 @@ cmd_up() {
   echo "  odoo:      http://localhost:8069"
   echo ""
 
-  docker network create proxy >/dev/null 2>&1 || true
+  docker network create caddy-authentik >/dev/null 2>&1 || true
+  docker network create caddy-n8n >/dev/null 2>&1 || true
+  docker network create caddy-odoo >/dev/null 2>&1 || true
 
   dc_authentik up -d
   wait_for_authentik
