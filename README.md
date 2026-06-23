@@ -100,7 +100,16 @@ Local development exposes Authentik on port 9000, n8n on 5678, and Odoo on 8069.
 
 ## Backups
 
-`180dc-backup.timer` creates validated PostgreSQL custom-format dumps daily at 03:00 UTC and retains seven dumps per database:
+`180dc-backup.timer` runs daily at 03:00 UTC and retains seven backup sets per
+category. It creates:
+
+- validated PostgreSQL custom-format dumps under `/opt/180dc/backups/databases`
+- validated runtime-volume archives under `/opt/180dc/backups/volumes`
+- compressed Docker log snapshots under `/opt/180dc/backups/logs`
+
+Runtime-volume backups include Caddy certificate/config volumes, n8n runtime
+data, the Odoo filestore, Vexa recordings, Vexa TTS voices, and Whisper model
+data.
 
 ```sh
 systemctl status 180dc-backup.timer
@@ -108,4 +117,5 @@ sudo /opt/180dc/backups/backup.sh
 sudo /opt/180dc/backups/restore.sh n8n n8n_YYYYMMDD_HHMMSS.dump
 ```
 
-Backups are local and database-only. They do not protect Docker volumes, Odoo attachments, recordings, certificates, or the complete server from host loss.
+Backups are local to the production server. They protect against application
+mistakes and failed deploys, but not total host loss.
