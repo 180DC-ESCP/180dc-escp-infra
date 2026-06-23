@@ -94,7 +94,7 @@
     - docker exec vexa-lite curl -fsS http://127.0.0.1:8056/docs
     - docker exec vexa-sso python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"
     - docker exec caddy wget -q --spider http://authentik-server:9000/-/health/live/
-    - docker exec caddy wget -q --spider http://127.0.0.1:2019/config/
+    - docker exec caddy wget -q -O /dev/null http://127.0.0.1:2019/config/
   changed_when: false
 
 - name: Verify origin routes through Caddy
