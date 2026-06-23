@@ -6,11 +6,32 @@
 	}
 }
 
+(access_log) {
+	log {
+		output file /data/access-{args[0]}.log {
+			roll_size 25MiB
+			roll_keep 7
+			roll_keep_for 168h
+		}
+		format filter {
+			request>uri query {
+				hash code
+				hash state
+				hash session_state
+			}
+			wrap json
+		}
+	}
+}
+
 login.{$BASE_DOMAIN} {
+	import access_log login
+
 	reverse_proxy authentik-server:9000
 }
 
 n8n.{$BASE_DOMAIN} {
+	import access_log n8n
 	import forward_auth
 
 	@signin path /signin /login
@@ -29,6 +50,8 @@ n8n.{$BASE_DOMAIN} {
 }
 
 hooks.{$BASE_DOMAIN} {
+	import access_log hooks
+
 	@n8n_ingress path /webhook/* /webhook-test/* /form/* /form-test/*
 	handle @n8n_ingress {
 		reverse_proxy n8n:5678 {
@@ -45,6 +68,7 @@ hooks.{$BASE_DOMAIN} {
 }
 
 vexa.{$BASE_DOMAIN} {
+	import access_log vexa
 	import forward_auth
 
 	@sso path /login /auth/sso /api/auth/logout
@@ -60,10 +84,13 @@ vexa.{$BASE_DOMAIN} {
 }
 
 vexa-api.{$BASE_DOMAIN} {
+	import access_log vexa-api
+
 	reverse_proxy vexa-lite:8056
 }
 
 odoo.{$BASE_DOMAIN} {
+	import access_log odoo
 	import forward_auth
 
 	@signin path /signin /login /web/login
