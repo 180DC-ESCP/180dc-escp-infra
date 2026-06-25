@@ -119,6 +119,22 @@
   tags:
     - skip_ansible_lint
 
+- name: Verify Authentik outpost callbacks bypass app login redirects
+  ansible.builtin.command: >-
+    curl -ksSI --connect-timeout 5 --max-time 15
+    --resolve {{ item.host }}:443:127.0.0.1
+    https://{{ item.host }}/outpost.goauthentik.io/callback?X-authentik-auth-callback=true&code=synthetic&state=synthetic
+  loop:
+    - {host: "n8n.{{ base_domain }}"}
+    - {host: "vexa.{{ base_domain }}"}
+    - {host: "odoo.{{ base_domain }}"}
+    - {host: "kuma.{{ base_domain }}"}
+  register: verify_authentik_outpost_callbacks
+  changed_when: false
+  failed_when: verify_authentik_outpost_callbacks.stdout is match('^HTTP/[0-9.]+ 30[12378]')
+  tags:
+    - skip_ansible_lint
+
 - name: Verify managed containers use services root Compose files
   ansible.builtin.assert:
     that:
