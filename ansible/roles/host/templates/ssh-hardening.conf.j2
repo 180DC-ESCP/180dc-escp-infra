@@ -1,10 +1,10 @@
 Port {{ ssh_port }}
-PermitRootLogin no
+PermitRootLogin prohibit-password
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PubkeyAuthentication yes
 AuthenticationMethods publickey
-AllowUsers {{ deploy_user }} {{ hs_monitor_user }}
+AllowUsers root {{ deploy_user }} {{ hs_monitor_user }}
 X11Forwarding no
 MaxAuthTries 3
 LoginGraceTime 30

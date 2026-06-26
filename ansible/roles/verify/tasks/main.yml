@@ -110,7 +110,8 @@
     - {host: "n8n.{{ base_domain }}", path: /, code: "302"}
     - {host: "hooks.{{ base_domain }}", path: /webhook/__verify_public_hooks__, code: "404"}
     - {host: "vexa.{{ base_domain }}", path: /, code: "302"}
-    - {host: "vexa-api.{{ base_domain }}", path: /admin/users, code: "403"}
+    - {host: "vexa-api.{{ base_domain }}", path: /docs, code: "302"}
+    - {host: "vexa-api.{{ base_domain }}", path: /admin/users, code: "302"}
     - {host: "odoo.{{ base_domain }}", path: /, code: "302"}
     - {host: "kuma.{{ base_domain }}", path: /, code: "302"}
   register: verify_origin_routes
@@ -127,11 +128,24 @@
   loop:
     - {host: "n8n.{{ base_domain }}"}
     - {host: "vexa.{{ base_domain }}"}
+    - {host: "vexa-api.{{ base_domain }}"}
     - {host: "odoo.{{ base_domain }}"}
     - {host: "kuma.{{ base_domain }}"}
   register: verify_authentik_outpost_callbacks
   changed_when: false
   failed_when: verify_authentik_outpost_callbacks.stdout is match('^HTTP/[0-9.]+ 30[12378]')
+  tags:
+    - skip_ansible_lint
+
+- name: Verify SSH root login remains key-only and explicit
+  ansible.builtin.shell: |
+    set -euo pipefail
+    sshd -T -C user=root,host=localhost,addr=127.0.0.1 | grep -Eq '^permitrootlogin (yes|prohibit-password)$'
+    sshd -T -C user=root,host=localhost,addr=127.0.0.1 | grep -Eq '^passwordauthentication no$'
+    sshd -T -C user=root,host=localhost,addr=127.0.0.1 | grep -Eq '^allowusers .*root'
+  args:
+    executable: /bin/bash
+  changed_when: false
   tags:
     - skip_ansible_lint
 

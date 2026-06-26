@@ -28,13 +28,23 @@
 	}
 }
 
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}
+
 login.{$BASE_DOMAIN} {
+	import security_headers
 	import access_log login
 
 	reverse_proxy authentik-server:9000
 }
 
 n8n.{$BASE_DOMAIN} {
+	import security_headers
 	import access_log n8n
 
 	route {
@@ -58,6 +68,7 @@ n8n.{$BASE_DOMAIN} {
 }
 
 hooks.{$BASE_DOMAIN} {
+	import security_headers
 	import access_log hooks
 
 	@n8n_ingress path /webhook/* /webhook-test/* /form/* /form-test/*
@@ -76,6 +87,7 @@ hooks.{$BASE_DOMAIN} {
 }
 
 vexa.{$BASE_DOMAIN} {
+	import security_headers
 	import access_log vexa
 
 	route {
@@ -96,12 +108,24 @@ vexa.{$BASE_DOMAIN} {
 }
 
 vexa-api.{$BASE_DOMAIN} {
+	import security_headers
 	import access_log vexa-api
 
-	reverse_proxy vexa-lite:8056
+	route {
+		import authentik_outpost
+
+		@sensitive path /docs /docs/* /redoc /redoc/* /openapi.json /admin /admin/*
+		handle @sensitive {
+			import forward_auth
+			reverse_proxy vexa-lite:8056
+		}
+
+		reverse_proxy vexa-lite:8056
+	}
 }
 
 odoo.{$BASE_DOMAIN} {
+	import security_headers
 	import access_log odoo
 
 	route {
@@ -118,6 +142,7 @@ odoo.{$BASE_DOMAIN} {
 }
 
 kuma.{$BASE_DOMAIN} {
+	import security_headers
 	import access_log kuma
 
 	route {

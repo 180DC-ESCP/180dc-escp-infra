@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import hmac
 import json
 import os
 import time
@@ -25,7 +26,8 @@ def allowed_email(email):
 
 
 def valid_sso_secret(headers):
-    return bool(SSO_SHARED_SECRET) and headers.get("X-Authentik-SSO-Secret") == SSO_SHARED_SECRET
+    supplied = headers.get("X-Authentik-SSO-Secret") or ""
+    return bool(SSO_SHARED_SECRET) and hmac.compare_digest(supplied, SSO_SHARED_SECRET)
 
 
 def api_request(method, path, payload=None):
@@ -91,13 +93,14 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "vexa-authentik-sso/1.0"
 
     def do_GET(self):
-        if self.path == "/health":
+        path = urllib.parse.urlsplit(self.path).path
+        if path == "/health":
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(b'{"status":"ok"}')
             return
-        if self.path not in {"/login", "/auth/sso"}:
+        if path not in {"/login", "/auth/sso"}:
             self.send_error(404)
             return
         try:
@@ -126,10 +129,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Location", "/")
             self.end_headers()
         except Exception as error:
-            self.send_error(500, f"SSO login failed: {error}")
+            print(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} SSO login failed: {error!r}", flush=True)
+            self.send_error(500, "SSO login failed")
 
     def do_POST(self):
-        if self.path != "/api/auth/logout":
+        path = urllib.parse.urlsplit(self.path).path
+        if path != "/api/auth/logout":
             self.send_error(404)
             return
         if not valid_sso_secret(self.headers):

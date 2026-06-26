@@ -15,6 +15,10 @@ for seven days. OAuth query parameters such as `code`, `state`, and
 `session_state` are hashed before logging so redirect loops can be correlated
 without storing raw authorization values.
 
+Caddy applies a small shared security-header baseline and requires Authentik
+for Vexa API documentation and admin paths. Runtime API endpoints remain
+available through `vexa-api.180dc-escp.org` for scoped Vexa tokens.
+
 ## Monitoring
 
 Run Uptime Kuma and Prometheus from outside this server so host/network outages
@@ -101,10 +105,10 @@ ssh deploy@46.224.187.189
 sudo -i
 ```
 
-Root SSH login is disabled. The `deploy` user has passwordless sudo, so this
-still provides full administrative control while keeping direct root login out
-of the SSH authentication path. The homeserver uses the separate `hs-monitor`
-user, which has no sudo access and is restricted to forwarding
+Root SSH login is permitted for public-key authentication only. The `deploy`
+user also has passwordless sudo for automation and operator access. The
+homeserver uses the separate `hs-monitor` user, which has no sudo access and is
+restricted to forwarding
 `127.0.0.1:443` and `127.0.0.1:9100`.
 
 ## Local development

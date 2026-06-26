@@ -120,9 +120,12 @@ obsolete_app_slugs = {"bimi", "n8n-hooks", "odoo-retired", "vexa-api-admin"}
 obsolete_provider_names = {"BIMI", "n8n hooks", "Odoo retired", "Vexa API Admin"}
 if INCLUDE_VEXA:
     apps.insert(1, ("Vexa", "vexa", f"https://vexa.{BASE_DOMAIN}"))
+    apps.insert(2, ("Vexa API", "vexa-api", f"https://vexa-api.{BASE_DOMAIN}"))
 else:
     obsolete_app_slugs.add("vexa")
+    obsolete_app_slugs.add("vexa-api")
     obsolete_provider_names.add("Vexa")
+    obsolete_provider_names.add("Vexa API")
 
 providers = []
 for name, slug, external_host in apps:
