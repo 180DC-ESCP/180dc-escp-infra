@@ -1,0 +1,123 @@
+---
+- name: Render local Docker application stack
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    repo_root: "{{ playbook_dir | dirname }}"
+    local_dir: "{{ repo_root }}/.local"
+    local_secrets_dir: "{{ local_dir }}/secrets"
+    local_full_base_domain: "{{ lookup('env', 'LOCAL_FULL_BASE_DOMAIN') | default('localhost:8080', true) }}"
+    local_full_port: "{{ local_full_base_domain.split(':')[-1] if ':' in local_full_base_domain else '80' }}"
+    base_domain: "{{ local_full_base_domain }}"
+    app_public_scheme: http
+    authentik_base_url: "http://login.{{ local_full_base_domain }}"
+    authentik_include_vexa: false
+    authentik_password_login_enabled: true
+    n8n_secure_cookie: false
+    google_oauth_client_id: local-google-client-id
+    caddy_http_only: true
+    caddy_enable_hsts: false
+    caddy_include_vexa: false
+    services_authentik_first_install: true
+    local_secret_chars:
+      - ascii_letters
+      - digits
+
+  tasks:
+    - name: Create local generated directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0700"
+      loop:
+        - "{{ local_dir }}"
+        - "{{ local_secrets_dir }}"
+
+    - name: Set local generated secrets
+      ansible.builtin.set_fact:
+        services_authentik_bootstrap_password: >-
+          {{ lookup('ansible.builtin.password', local_secrets_dir ~ '/authentik_bootstrap_password',
+          length=48, chars=local_secret_chars) }}
+        production_secrets:
+          authentik:
+            db_password: >-
+              {{ lookup('ansible.builtin.password', local_secrets_dir ~ '/authentik_db_password',
+              length=48, chars=local_secret_chars) }}
+            secret_key: >-
+              {{ lookup('ansible.builtin.password', local_secrets_dir ~ '/authentik_secret_key',
+              length=64, chars=local_secret_chars) }}
+          n8n:
+            db_password: >-
+              {{ lookup('ansible.builtin.password', local_secrets_dir ~ '/n8n_db_password',
+              length=48, chars=local_secret_chars) }}
+            encryption_key: >-
+              {{ lookup('ansible.builtin.password', local_secrets_dir ~ '/n8n_encryption_key',
+              length=64, chars=local_secret_chars) }}
+          vexa:
+            db_password: >-
+              {{ lookup('ansible.builtin.password', local_secrets_dir ~ '/vexa_db_password',
+              length=48, chars=local_secret_chars) }}
+            admin_token: >-
+              {{ lookup('ansible.builtin.password', local_secrets_dir ~ '/vexa_admin_token',
+              length=48, chars=local_secret_chars) }}
+          odoo:
+            db_password: >-
+              {{ lookup('ansible.builtin.password', local_secrets_dir ~ '/odoo_db_password',
+              length=48, chars=local_secret_chars) }}
+          sso:
+            n8n: >-
+              {{ lookup('ansible.builtin.password', local_secrets_dir ~ '/n8n_sso_secret',
+              length=64, chars=local_secret_chars) }}
+            vexa: >-
+              {{ lookup('ansible.builtin.password', local_secrets_dir ~ '/vexa_sso_secret',
+              length=64, chars=local_secret_chars) }}
+            odoo: >-
+              {{ lookup('ansible.builtin.password', local_secrets_dir ~ '/odoo_sso_secret',
+              length=64, chars=local_secret_chars) }}
+          google:
+            client_secret: local-google-client-secret
+          smtp:
+            password: ""
+      no_log: true
+
+    - name: Inspect local Caddyfile path
+      ansible.builtin.stat:
+        path: "{{ local_dir }}/Caddyfile"
+      register: local_caddyfile_path
+
+    - name: Remove stale local Caddyfile directory
+      ansible.builtin.file:
+        path: "{{ local_dir }}/Caddyfile"
+        state: absent
+      when: local_caddyfile_path.stat.isdir | default(false)
+
+    - name: Render local service environments
+      ansible.builtin.template:
+        src: "roles/services/templates/{{ item }}.env.j2"
+        dest: "{{ repo_root }}/{{ item }}/.env"
+        mode: "0600"
+      loop:
+        - authentik
+        - n8n
+        - odoo
+        - caddy
+        - uptime-kuma
+      no_log: true
+
+    - name: Render local Caddy configuration
+      ansible.builtin.template:
+        src: "{{ repo_root }}/caddy/Caddyfile.j2"
+        dest: "{{ local_dir }}/Caddyfile"
+        mode: "0644"
+
+    - name: Render local Compose overrides
+      ansible.builtin.template:
+        src: "templates/local/{{ item }}.compose.yml.j2"
+        dest: "{{ local_dir }}/{{ item }}.compose.yml"
+        mode: "0644"
+      loop:
+        - authentik
+        - n8n
+        - odoo
+        - caddy

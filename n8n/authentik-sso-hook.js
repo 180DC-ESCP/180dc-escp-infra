@@ -16,7 +16,9 @@ function isAllowedEmail(email) {
 }
 
 function hasValidSsoSecret(req) {
-  return Boolean(ssoSharedSecret) && header(req, 'x-authentik-sso-secret') === ssoSharedSecret;
+  const supplied = String(header(req, 'x-authentik-sso-secret') || '');
+  if (!ssoSharedSecret || supplied.length !== ssoSharedSecret.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(ssoSharedSecret));
 }
 
 function splitName(name, email) {

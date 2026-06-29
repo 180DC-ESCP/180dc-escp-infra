@@ -62,9 +62,9 @@
     mode: "0644"
   loop: "{{ service_names }}"
 
-- name: Copy Caddy configuration
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../caddy/Caddyfile"
+- name: Render Caddy configuration
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../caddy/Caddyfile.j2"
     dest: "{{ services_root }}/caddy/Caddyfile"
     owner: root
     group: root

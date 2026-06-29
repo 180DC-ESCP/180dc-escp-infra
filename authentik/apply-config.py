@@ -13,12 +13,14 @@ from authentik.stages.user_write.models import UserWriteStage
 
 
 BASE_URL = os.environ.get("AUTHENTIK_BASE_URL", "https://login.180dc-escp.org").rstrip("/")
+APP_SCHEME = os.environ.get("AUTHENTIK_APP_SCHEME", "https").rstrip(":/")
 BASE_DOMAIN = os.environ.get("BASE_DOMAIN", "180dc-escp.org").strip().lower()
 ALLOWED_DOMAIN = os.environ.get("AUTHENTIK_ALLOWED_EMAIL_DOMAIN", "180dc.org").lstrip("@").lower()
 PLATFORM_ADMIN_EMAIL = os.environ.get("PLATFORM_ADMIN_EMAIL", "escp@180dc.org").strip().lower()
 GOOGLE_CLIENT_ID = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
 GOOGLE_CLIENT_SECRET = os.environ["GOOGLE_OAUTH_CLIENT_SECRET"]
 INCLUDE_VEXA = os.environ.get("AUTHENTIK_INCLUDE_VEXA", "true").lower() not in {"0", "false", "no"}
+PASSWORD_LOGIN_ENABLED = os.environ.get("AUTHENTIK_PASSWORD_LOGIN_ENABLED", "false").lower() in {"1", "true", "yes"}
 
 
 _required_flows = [
@@ -87,7 +89,17 @@ google, _ = OAuthSource.objects.update_or_create(
 )
 
 ident = IdentificationStage.objects.get(name="default-authentication-identification")
-ident.password_stage = None
+if PASSWORD_LOGIN_ENABLED:
+    try:
+        from authentik.stages.password.models import PasswordStage
+
+        password_stage = PasswordStage.objects.filter(name="default-authentication-password").first()
+        if password_stage:
+            ident.password_stage = password_stage
+    except Exception as error:
+        print(f"could not enable password login: {error!r}")
+else:
+    ident.password_stage = None
 ident.recovery_flow = None
 ident.save()
 ident.sources.set([google])
@@ -112,17 +124,20 @@ authorization_flow = flow("default-provider-authorization-implicit-consent")
 invalidation_flow = flow("default-provider-invalidation-flow")
 
 apps = [
-    ("n8n", "n8n", f"https://n8n.{BASE_DOMAIN}"),
-    ("Odoo", "odoo", f"https://odoo.{BASE_DOMAIN}"),
-    ("Uptime Kuma", "uptime-kuma", f"https://kuma.{BASE_DOMAIN}"),
+    ("n8n", "n8n", f"{APP_SCHEME}://n8n.{BASE_DOMAIN}"),
+    ("Odoo", "odoo", f"{APP_SCHEME}://odoo.{BASE_DOMAIN}"),
+    ("Uptime Kuma", "uptime-kuma", f"{APP_SCHEME}://kuma.{BASE_DOMAIN}"),
 ]
 obsolete_app_slugs = {"bimi", "n8n-hooks", "odoo-retired", "vexa-api-admin"}
 obsolete_provider_names = {"BIMI", "n8n hooks", "Odoo retired", "Vexa API Admin"}
 if INCLUDE_VEXA:
-    apps.insert(1, ("Vexa", "vexa", f"https://vexa.{BASE_DOMAIN}"))
+    apps.insert(1, ("Vexa", "vexa", f"{APP_SCHEME}://vexa.{BASE_DOMAIN}"))
+    apps.insert(2, ("Vexa API", "vexa-api", f"{APP_SCHEME}://vexa-api.{BASE_DOMAIN}"))
 else:
     obsolete_app_slugs.add("vexa")
+    obsolete_app_slugs.add("vexa-api")
     obsolete_provider_names.add("Vexa")
+    obsolete_provider_names.add("Vexa API")
 
 providers = []
 for name, slug, external_host in apps:

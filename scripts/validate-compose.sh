@@ -79,7 +79,7 @@ validate_service() {
 
   case "$service" in
     caddy)
-      cp "$ROOT/caddy/Caddyfile" "$workdir/Caddyfile"
+      cp "$ROOT/caddy/Caddyfile.j2" "$workdir/Caddyfile"
       ;;
     n8n)
       cp "$ROOT/n8n/authentik-sso-hook.js" "$workdir/authentik-sso-hook.js"

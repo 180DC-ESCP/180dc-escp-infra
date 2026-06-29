@@ -36,6 +36,12 @@ jobs:
           node --check n8n/authentik-sso-hook.js
           ansible-lint ansible
 
+      - name: Validate Compose files
+        run: bash scripts/validate-compose.sh
+
+      - name: Validate image references
+        run: bash scripts/validate-images.sh
+
       - name: Configure deployment inputs
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}

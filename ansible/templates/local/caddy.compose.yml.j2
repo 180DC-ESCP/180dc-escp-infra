@@ -1,0 +1,49 @@
+services:
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2.11.4-alpine}
+    container_name: caddy
+    restart: unless-stopped
+    mem_limit: ${CADDY_MEMORY_LIMIT:-128m}
+    pids_limit: ${CADDY_PIDS_LIMIT:-100}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - {{ repo_root }}/caddy/.env
+    ports:
+      - "127.0.0.1:{{ local_full_port }}:{{ local_full_port }}"
+    volumes:
+      - {{ local_dir }}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - caddy-authentik
+      - caddy-n8n
+      - caddy-odoo
+      - caddy-kuma
+
+networks:
+  caddy-authentik:
+    external: true
+  caddy-n8n:
+    external: true
+  caddy-odoo:
+    external: true
+  caddy-kuma:
+    external: true
+
+volumes:
+  caddy_data:
+    name: caddy_caddy_data
+  caddy_config:
+    name: caddy_caddy_config

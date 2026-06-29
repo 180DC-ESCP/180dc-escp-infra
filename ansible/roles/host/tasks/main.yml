@@ -145,6 +145,15 @@
   community.general.ufw:
     state: enabled
 
+- name: Remove obsolete SSH hardening snippets
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/ssh/sshd_config.d/00-hardening.conf
+    - /etc/ssh/sshd_config.d/99-hardening.conf
+  notify: Restart SSH
+
 - name: Manage SSH hardening
   ansible.builtin.template:
     src: ssh-hardening.conf.j2

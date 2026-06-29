@@ -15,6 +15,10 @@ for seven days. OAuth query parameters such as `code`, `state`, and
 `session_state` are hashed before logging so redirect loops can be correlated
 without storing raw authorization values.
 
+Caddy applies a small shared security-header baseline and requires Authentik
+for Vexa API documentation and admin paths. Runtime API endpoints remain
+available through `vexa-api.180dc-escp.org` for scoped Vexa tokens.
+
 ## Monitoring
 
 Run Uptime Kuma and Prometheus from outside this server so host/network outages
@@ -101,10 +105,10 @@ ssh deploy@46.224.187.189
 sudo -i
 ```
 
-Root SSH login is disabled. The `deploy` user has passwordless sudo, so this
-still provides full administrative control while keeping direct root login out
-of the SSH authentication path. The homeserver uses the separate `hs-monitor`
-user, which has no sudo access and is restricted to forwarding
+Root SSH login is permitted for public-key authentication only. The `deploy`
+user also has passwordless sudo for automation and operator access. The
+homeserver uses the separate `hs-monitor` user, which has no sudo access and is
+restricted to forwarding
 `127.0.0.1:443` and `127.0.0.1:9100`.
 
 ## Local development
@@ -117,7 +121,34 @@ user, which has no sudo access and is restricted to forwarding
 ./scripts/local.sh reset
 ```
 
-Local development exposes Authentik on port 9000, n8n on 5678, and Odoo on 8069. It does not run Caddy or Vexa.
+The direct local mode exposes Authentik on port 9000, n8n on 5678, and Odoo on 8069. It does not run Caddy or Vexa.
+The local helper renders service `.env` files, Compose overrides, and the local
+Caddyfile through `ansible/local.yml`, reusing the same templates as production
+where practical.
+
+To run the fuller local application stack without Vexa:
+
+```sh
+./scripts/local.sh full-up
+./scripts/local.sh full-verify
+./scripts/local.sh full-down
+./scripts/local.sh full-reset
+```
+
+This starts Authentik, Caddy, n8n, Odoo, and Uptime Kuma. It uses local HTTP
+routes through Caddy:
+
+- `http://login.localhost:8080`
+- `http://n8n.localhost:8080`
+- `http://hooks.localhost:8080`
+- `http://odoo.localhost:8080`
+- `http://kuma.localhost:8080`
+
+Full-stack mode enables local Authentik password login for the bootstrap user
+and omits Vexa. Google SSO still requires real OAuth credentials and matching
+redirect URIs if you want to test it locally. Host-level Ansible behavior such
+as UFW, SSH hardening, fail2ban, systemd timers, and swap still requires a
+disposable Debian/Ubuntu VM.
 
 ## Backups
 

@@ -1,4 +1,5 @@
 import logging
+import hmac
 import os
 
 from odoo import SUPERUSER_ID, http
@@ -22,7 +23,7 @@ def _allowed_email(email):
 
 
 def _valid_sso_secret():
-    return bool(SSO_SHARED_SECRET) and _header("X-Authentik-SSO-Secret") == SSO_SHARED_SECRET
+    return bool(SSO_SHARED_SECRET) and hmac.compare_digest(_header("X-Authentik-SSO-Secret"), SSO_SHARED_SECRET)
 
 
 def _safe_redirect(target):
