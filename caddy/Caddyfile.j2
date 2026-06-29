@@ -1,3 +1,4 @@
+{% set site_prefix = 'http://' if caddy_http_only | default(false) else '' %}
 (forward_auth) {
 	forward_auth authentik-server:9000 {
 		uri /outpost.goauthentik.io/auth/caddy
@@ -30,20 +31,22 @@
 
 (security_headers) {
 	header {
+{% if caddy_enable_hsts | default(true) %}
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+{% endif %}
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
 	}
 }
 
-login.{$BASE_DOMAIN} {
+{{ site_prefix }}login.{$BASE_DOMAIN} {
 	import security_headers
 	import access_log login
 
 	reverse_proxy authentik-server:9000
 }
 
-n8n.{$BASE_DOMAIN} {
+{{ site_prefix }}n8n.{$BASE_DOMAIN} {
 	import security_headers
 	import access_log n8n
 
@@ -67,7 +70,7 @@ n8n.{$BASE_DOMAIN} {
 	}
 }
 
-hooks.{$BASE_DOMAIN} {
+{{ site_prefix }}hooks.{$BASE_DOMAIN} {
 	import security_headers
 	import access_log hooks
 
@@ -86,7 +89,8 @@ hooks.{$BASE_DOMAIN} {
 	respond 404
 }
 
-vexa.{$BASE_DOMAIN} {
+{% if caddy_include_vexa | default(true) %}
+{{ site_prefix }}vexa.{$BASE_DOMAIN} {
 	import security_headers
 	import access_log vexa
 
@@ -107,7 +111,7 @@ vexa.{$BASE_DOMAIN} {
 	}
 }
 
-vexa-api.{$BASE_DOMAIN} {
+{{ site_prefix }}vexa-api.{$BASE_DOMAIN} {
 	import security_headers
 	import access_log vexa-api
 
@@ -124,7 +128,8 @@ vexa-api.{$BASE_DOMAIN} {
 	}
 }
 
-odoo.{$BASE_DOMAIN} {
+{% endif %}
+{{ site_prefix }}odoo.{$BASE_DOMAIN} {
 	import security_headers
 	import access_log odoo
 
@@ -141,7 +146,7 @@ odoo.{$BASE_DOMAIN} {
 	}
 }
 
-kuma.{$BASE_DOMAIN} {
+{{ site_prefix }}kuma.{$BASE_DOMAIN} {
 	import security_headers
 	import access_log kuma
 

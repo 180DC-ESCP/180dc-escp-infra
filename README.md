@@ -121,7 +121,34 @@ restricted to forwarding
 ./scripts/local.sh reset
 ```
 
-Local development exposes Authentik on port 9000, n8n on 5678, and Odoo on 8069. It does not run Caddy or Vexa.
+The direct local mode exposes Authentik on port 9000, n8n on 5678, and Odoo on 8069. It does not run Caddy or Vexa.
+The local helper renders service `.env` files, Compose overrides, and the local
+Caddyfile through `ansible/local.yml`, reusing the same templates as production
+where practical.
+
+To run the fuller local application stack without Vexa:
+
+```sh
+./scripts/local.sh full-up
+./scripts/local.sh full-verify
+./scripts/local.sh full-down
+./scripts/local.sh full-reset
+```
+
+This starts Authentik, Caddy, n8n, Odoo, and Uptime Kuma. It uses local HTTP
+routes through Caddy:
+
+- `http://login.localhost:8080`
+- `http://n8n.localhost:8080`
+- `http://hooks.localhost:8080`
+- `http://odoo.localhost:8080`
+- `http://kuma.localhost:8080`
+
+Full-stack mode enables local Authentik password login for the bootstrap user
+and omits Vexa. Google SSO still requires real OAuth credentials and matching
+redirect URIs if you want to test it locally. Host-level Ansible behavior such
+as UFW, SSH hardening, fail2ban, systemd timers, and swap still requires a
+disposable Debian/Ubuntu VM.
 
 ## Backups
 

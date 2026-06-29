@@ -34,7 +34,7 @@ images:
   n8n: n8nio/n8n:2.26.4
   odoo: odoo:19.0-20260609
   vexa: vexaai/vexa-lite@sha256:4752bc3cfe4c6a9a334018fe3f7c6a21f56616cd1de370d0c2c9f577206a36ec
-  whisper: hwdsl2/whisper-server@sha256:71888a51402c28b7f706df9f65374ed6b09a38a3ae067c0eb17c187d0466d88d
+  whisper: hwdsl2/whisper-server@sha256:428b733c043cb8e1a19a7a7dd17014a2529c32fb79ebcc29e91582118b42ba41
   vexa_sso: python:3.14.6-alpine
   uptime_kuma: louislam/uptime-kuma:2
 
